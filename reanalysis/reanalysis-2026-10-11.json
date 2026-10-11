@@ -1,0 +1,166 @@
+{
+  "results": {
+    "deviation": "post-hoc reanalysis, not preregistered",
+    "shots": 4000,
+    "t1": {
+      "runs": [
+        {
+          "job": "db5nptsvf2bc73d06960",
+          "frozen_fit_us": 78.71533599383771,
+          "nlls_us": 74.29731452164009,
+          "nlls_err_us": 1.320797918431925,
+          "floor_B": 0.016538445672335377,
+          "red_chi2": 4.337982732872122,
+          "single_exp_adequate": false
+        },
+        {
+          "job": "db5she84qg6s73c3u47g",
+          "frozen_fit_us": 123.6660367845311,
+          "nlls_us": 107.19995454543238,
+          "nlls_err_us": 4.333325735220501,
+          "floor_B": 0.0913545731173987,
+          "red_chi2": 10.29171086325072,
+          "single_exp_adequate": false
+        },
+        {
+          "job": "db5sjhimb58s738ausig",
+          "frozen_fit_us": 124.50197908662639,
+          "nlls_us": 106.65191092786117,
+          "nlls_err_us": 5.024298616365595,
+          "floor_B": 0.09822219762306164,
+          "red_chi2": 12.446790701755651,
+          "single_exp_adequate": false
+        },
+        {
+          "job": "db5sjoamb58s738ausq0",
+          "frozen_fit_us": 125.88280952596811,
+          "nlls_us": 111.79524191451075,
+          "nlls_err_us": 4.450655998002684,
+          "floor_B": 0.09258708704104968,
+          "red_chi2": 9.348906527211744,
+          "single_exp_adequate": false
+        }
+      ],
+      "nlls_group_us": {
+        "mean": 99.98610547736111,
+        "sd": 17.280453937312895,
+        "n": 4
+      },
+      "frozen_group_us": {
+        "mean": 113.19154034774084,
+        "sd": 23.002304812610447,
+        "n": 4
+      }
+    },
+    "t2": {
+      "runs": [
+        {
+          "job": "db5sjvslf4us73c4ga90",
+          "frozen_fit_us": 111.11059872515925,
+          "nlls_us": 94.39883149228287,
+          "nlls_err_us": 2.715368536173983,
+          "floor_B": 0.5142813931560924,
+          "red_chi2": 1.2734224703126158,
+          "single_exp_adequate": true
+        },
+        {
+          "job": "db5t26imb58s738averg",
+          "frozen_fit_us": 119.98928756538287,
+          "nlls_us": 88.08066011506814,
+          "nlls_err_us": 3.4289396459433776,
+          "floor_B": 0.5160876892971273,
+          "red_chi2": 2.616558514462974,
+          "single_exp_adequate": true
+        },
+        {
+          "job": "db5t2hg4qg6s73c3up80",
+          "frozen_fit_us": 96.58324621465273,
+          "nlls_us": 83.80922826140964,
+          "nlls_err_us": 2.484205537575716,
+          "floor_B": 0.5137153270252036,
+          "red_chi2": 1.5736692279660391,
+          "single_exp_adequate": true
+        }
+      ],
+      "nlls_group_us": {
+        "mean": 88.76290662292023,
+        "sd": 5.327665470911008,
+        "n": 3
+      },
+      "frozen_group_us": {
+        "mean": 109.22771083506495,
+        "sd": 11.816075618961655,
+        "n": 3
+      }
+    },
+    "ramsey": {
+      "job": "db5gdi4vf2bc73cvsa8g",
+      "programmed_khz": 250.0,
+      "sample_step_us": 2.0,
+      "nyquist_khz": 250.0,
+      "at_nyquist": true,
+      "frozen_fft_khz": 225.5859375,
+      "alias_branches": [
+        {
+          "f_khz": 227.4791009458874,
+          "f_err_khz": 0.36000417034843973,
+          "T2star_us": 39.05905308778114,
+          "T2star_err_us": 2.3706467058390386,
+          "red_chi2": 19.040716515914756,
+          "rss": 0.023355530835458195
+        },
+        {
+          "f_khz": 272.52089898105646,
+          "f_err_khz": 0.36000372990475155,
+          "T2star_us": 39.059053441613926,
+          "T2star_err_us": 2.3706470802171244,
+          "red_chi2": 19.040716515928878,
+          "rss": 0.02335553034686924
+        }
+      ],
+      "aliases_indistinguishable": true,
+      "frame_offset_abs_khz": 22.520899017584526,
+      "frame_offset_err_khz": 0.36000417034843973
+    },
+    "rabi": {
+      "job": "db5fs24lf4us73c3vv3g",
+      "frozen_fft_rad": 6.1865209178383616,
+      "nlls_period_rad": 6.284454807292239,
+      "nlls_err_rad": 0.007147274473070094,
+      "ideal_rad": 6.283185307179586,
+      "red_chi2": 0.8146092892634595,
+      "note": "Rx(theta) compiles to virtual-Z around fixed sqrt(X) pulses: a gate-phase sweep, not a drive-amplitude Rabi."
+    },
+    "ops_budget": {
+      "T2_echo_us": 88.76290662292023,
+      "gate_time_ns_ASSUMED": 59.99999999999999,
+      "ratio": 1479.3817770486705
+    }
+  },
+  "estimator_checks": {
+    "t2_echo_bias_pct": {
+      "80us": 32.78055174682144,
+      "90us": 19.195424046041374,
+      "110us": 0.531259257424721,
+      "150us": 6.553934209321488,
+      "200us": 3.9319442404368354
+    },
+    "t1_bias_pct": {
+      "80us": -0.1772450633585776,
+      "110us": -0.18783119898324596,
+      "125us": 0.0011254313359465584,
+      "200us": 0.11625502499761353
+    },
+    "ramsey_reads_khz": {
+      "true 227.2kHz": 226.07421875,
+      "true 272.8kHz": 226.07421875,
+      "true 245.0kHz": 250.0,
+      "true 255.0kHz": 250.0
+    },
+    "rabi_reads_rad": {
+      "true 6.347": 6.1865209178383616,
+      "true 6.283": 6.1865209178383616,
+      "true 6.221": 6.1276016710018055
+    }
+  }
+}

@@ -112,3 +112,17 @@ The push is the anchor; a post-push edit silently breaks the chain the prereg ex
 - [ ] T1 vs the bias table above (which correction, if any, was applied)
 - [ ] Deviations from OPERATIONS-PLAN.md, logged as deviations, not silent edits
 - [ ] What the data changed in this log (per the stopping rule)
+
+## 6. Post-run review (2026-10-11, independent reviewer)
+
+The post-run checklist in §5 was not completed in this log. An independent review
+of the published repo found analysis errors that this log's pre-run checks missed:
+- Ramsey sampled exactly at Nyquist.
+- The T2-echo estimator reads high on the hardware sweep.
+- T1 is model-dependent.
+- The Rabi estimator cannot resolve the period.
+- The BASE ops-budget denominator was unsourced and is wrong per the manuscript.
+
+All findings, corrected numbers and root causes are in `ERRATA-2026-10-11.md`.
+Lesson for the next freeze: validate each estimator on the exact hardware grid,
+at off-nominal true values, before the manifest is written.
