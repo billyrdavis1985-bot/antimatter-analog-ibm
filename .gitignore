@@ -1,0 +1,18 @@
+# Never committed — secrets and machine-local state
+.env
+*.env
+*token*
+*credential*
+*apikey*
+qiskitrc
+qiskit-ibm.json
+
+# Machine-local runtime
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Keep public: raw CSVs, job-ID logs, calibration snapshots (no secrets in these)
+!*.csv

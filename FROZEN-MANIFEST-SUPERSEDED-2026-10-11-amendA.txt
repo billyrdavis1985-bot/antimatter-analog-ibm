@@ -1,0 +1,6 @@
+3921c0d514353870f984f1adca6e576cfee274027224b67b1c6fe6fecc44c5f9  antimatter_analog_ibm.py
+4d22855ad3a4d46e0854051a76b8640e45d7969e23a835373f871d5d05ff5a69  README.md
+f9c6c7adc6ebfe39b8ec7f9b5f1bca61e6eeaa7025cf51a812e74fbda2f5f047  OPERATIONS-PLAN.md
+4cb9bbc5f73d518f8d86adeff9fb293a9998aafb02aecb7ea05eff87dadfa059  RUN-NIGHT-PREFLIGHT.md
+frozen_at_utc: 2026-10-11T02:35:21Z
+amend: option A (2026-10-10) - fit_exponential -> 3-param (bias -23..-60% removed), fit_cos_frequency -> zero-padded FFT (Rabi 5.0% -> 1.5%), sim T1 gate 15% -> 5%. Supersedes FROZEN-MANIFEST-SUPERSEDED-2026-10-09.txt.

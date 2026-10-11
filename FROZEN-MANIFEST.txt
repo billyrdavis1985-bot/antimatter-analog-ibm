@@ -1,0 +1,6 @@
+a5ab9f532ef2715294f3cca5a4e7ee2689a39573422c7783aa086fabb23c5340  antimatter_analog_ibm.py
+4d22855ad3a4d46e0854051a76b8640e45d7969e23a835373f871d5d05ff5a69  README.md
+f9c6c7adc6ebfe39b8ec7f9b5f1bca61e6eeaa7025cf51a812e74fbda2f5f047  OPERATIONS-PLAN.md
+4cb9bbc5f73d518f8d86adeff9fb293a9998aafb02aecb7ea05eff87dadfa059  RUN-NIGHT-PREFLIGHT.md
+frozen_at_utc: 2026-10-11T13:21:58Z
+amend B (2026-10-11): added T2-echo hardware submit+fetch path (HW_T2_N=21, 0-400us, closing -pi/2); 'all' unchanged (rabi+ramsey+t1); t2 opt-in. Chain: SUPERSEDED-2026-10-09 (original) -> SUPERSEDED-2026-10-11-amendA (fit fixes) -> this.

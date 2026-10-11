@@ -1,0 +1,17 @@
+run_utc: 2026-10-09T15:24:41Z
+cmd: ./.venv/bin/python antimatter_analog_ibm.py sim
+versions: qiskit qiskit-aer numpy qiskit-ibm-runtime = 2.5.2 0.17.2 2.5.3 0.50.0
+script_sha256: fe6f257da84bdc16bd3f6f9968d7c2c645c7ec500bfa54207dbf8b0393f95953
+---
+== Aer selftest: BASE-analog suite ==
+Rabi period: 6.440 rad (expect ~6.283)
+T1: fit 103.2 us  (model 120 us)
+Ramsey detuning: fit 245.9 kHz  (set 250 kHz)
+T2 echo: fit 117.5 us  (model T2 160 us)
+
+Coherent-ops budget (coherence time / operation time):
+  transmon (sim): ~3e+03   |   BASE antiproton: ~5e+04
+Both are 'many coherent operations per coherence time' —
+that ratio, not the raw seconds, is what makes a qubit usable.
+
+SELFTEST PASS
