@@ -25,9 +25,10 @@ Experiments (plain Qiskit, no qiskit_experiments dependency):
 
 Usage:
   python antimatter_analog_ibm.py sim        # Aer density-matrix sim + selftest
-  python antimatter_analog_ibm.py hardware <backend> [rabi|ramsey|t1|all]
+  python antimatter_analog_ibm.py hardware <backend> [rabi|ramsey|t1|t2|all]
                                            # submit jobs to IBM hardware
-  python antimatter_analog_ibm.py fetch <job_id> <rabi|ramsey|t1>
+                                           # ("all" = rabi+ramsey+t1, the frozen set; t2 opt-in)
+  python antimatter_analog_ibm.py fetch <job_id> <rabi|ramsey|t1|t2>
                                            # pull counts, run fits, save CSV
 
 Dependencies: qiskit, qiskit-aer, numpy. (qiskit-ibm-runtime only for hardware.)
@@ -54,6 +55,7 @@ DETUNING_SIM = 250e3     # Hz, programmed Ramsey phase ramp (the "g-factor" prox
 HW_RABI_N = 21
 HW_RAMSEY_N, HW_RAMSEY_MAX = 31, 60e-6
 HW_T1_N, HW_T1_MAX = 21, 400e-6
+HW_T2_N, HW_T2_MAX = 21, 400e-6   # amend B (2026-10-11): T2 echo hardware path
 
 BASE_COHERENCE_S = 50.0  # reported antiproton spin coherence time
 
@@ -250,7 +252,23 @@ def run_hardware(backend_name, which="all"):
             tcircs.append(qc)
         job = sampler.run(transpile(tcircs, backend), shots=shots)
         print("T1 job:", job.job_id())
-    print("Jobs submitted. Fetch with: fetch <job_id> <rabi|ramsey|t1>")
+
+    if which == "t2":
+        # Amend B (2026-10-11): T2 echo hardware path. Closing -pi/2:
+        # ideal final state |1>, P1 decays 1 -> 0.5 with dephasing.
+        ecircs = []
+        for d in np.linspace(0, HW_T2_MAX, HW_T2_N):
+            qc = QuantumCircuit(1, 1)
+            qc.rx(np.pi / 2, 0)
+            hw_delay(qc, d / 2)
+            qc.x(0)
+            hw_delay(qc, d / 2)
+            qc.rx(-np.pi / 2, 0)
+            qc.measure(0, 0)
+            ecircs.append(qc)
+        job = sampler.run(transpile(ecircs, backend), shots=shots)
+        print("T2 echo job:", job.job_id())
+    print("Jobs submitted. Fetch with: fetch <job_id> <rabi|ramsey|t1|t2>")
 
 
 def fetch(job_id, which):
@@ -284,8 +302,13 @@ def fetch(job_id, which):
         t1 = fit_exponential(x, probs)
         print(f"T1: {t1*1e6:.1f} us")
         cols, hdr = (x, probs), "delay_s,P1"
+    elif which == "t2":
+        x = np.linspace(0, HW_T2_MAX, HW_T2_N)
+        t2 = fit_exponential(x, probs)
+        print(f"T2 echo: {t2*1e6:.1f} us")
+        cols, hdr = (x, probs), "delay_s,P1"
     else:
-        raise SystemExit("which must be rabi|ramsey|t1")
+        raise SystemExit("which must be rabi|ramsey|t1|t2")
 
     out = f"fetch_{job_id}_{which}.csv"
     np.savetxt(out, np.column_stack(cols), delimiter=",", header=hdr)
