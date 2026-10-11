@@ -157,8 +157,66 @@ def test_published_headline_values():
     r = rp.analyze(None)
     assert round(r["rabi"]["period_rad"], 3) == 6.284
     assert round(r["ramsey"]["offset_abs_khz_best_fit"], 1) == 22.5
-    lo, hi = r["ramsey"]["offset_model_range_khz"]
+    lo, hi = r["ramsey"]["offset_spread_across_tested_models_khz"]
     assert (round(lo, 1), round(hi, 1)) == (20.7, 23.1)
     if r["qubit_map_loaded"]:
         assert round(r["t2"]["per_qubit"]["70"]["weighted_us"]["mean"], 1) == 85.9
         assert round(r["t1"]["per_qubit"]["6"]["weighted_us"]["mean"], 1) == 108.5
+
+
+# ---- Edge cases raised in the second GPT review ---------------------------
+
+def test_partial_qubit_map_does_not_crash():
+    """Regression: a job missing from qubit-map.csv raised KeyError."""
+    full = rp.load_qubit_map()
+    if not full:
+        pytest.skip("no qubit map committed")
+    dropped = "db5t2hg4qg6s73c3up80"
+    part = {k: v for k, v in full.items() if k != dropped}
+    res = rp.analyze(None, qmap=part)
+    assert res["t2"]["unmapped_jobs"] == [dropped]
+    assert "unmapped" in res["t2"]["per_qubit"]
+    assert res["t2"]["per_qubit"]["unmapped"]["ibm_reported_us"] is None
+    assert "unmapped" not in res["ops_budget"]
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        rp.report(res, None)
+    assert "missing from qubit map" in buf.getvalue()
+
+
+def test_empty_qubit_map_falls_back_to_pooled():
+    res = rp.analyze(None, qmap={})
+    assert not res["qubit_map_loaded"]
+    assert "per_qubit" not in res["t1"]
+    assert set(res["ops_budget"]) == {"pooled"}
+
+
+def test_nonuniform_ramsey_spacing_disables_nyquist_claim():
+    d = np.array([0, 2, 4, 7, 9, 12, 14, 18]) * 1e-6
+    c = rp.sampling_check(d, 250e3)
+    assert c["uniform_spacing"] is False and c["at_nyquist"] is None
+    u = rp.sampling_check(np.linspace(0, 60e-6, 31), 250e3)
+    assert u["uniform_spacing"] and u["at_nyquist"]
+
+
+def test_parameter_at_bound_is_flagged():
+    t = np.linspace(0, 400e-6, 21)
+    y = 0.97 * np.exp(-t / 100e-6) + 0.015
+    tight = ([0.0, 1e-6, -0.1], [1.5, 50e-6, 1.0])          # cap T below the true 100 us
+    r = rp.wfit(rp.expdec, t, y, [0.9, 30e-6, 0.02], tight)
+    assert 1 in r["at_bound"]
+
+
+def test_prediction_outside_unit_interval_is_detected():
+    t = np.linspace(0, 400e-6, 21)
+    assert rp.prediction_in_unit_interval(rp.expdec, [0.97, 100e-6, 0.015], t)
+    assert not rp.prediction_in_unit_interval(rp.expdec, [0.9, 100e-6, 0.3], t)    # starts at 1.2
+    assert not rp.prediction_in_unit_interval(rp.expdec, [0.5, 100e-6, -0.05], t)  # dips below 0
+
+
+def test_committed_fits_stay_inside_unit_interval():
+    res = rp.analyze(None)
+    for kind in ("t1", "t2"):
+        assert all(r["prediction_in_unit_interval"] for r in res[kind]["runs"])
+    assert res["rabi"]["prediction_in_unit_interval"]
+    assert all(b["prediction_in_unit_interval"] for b in res["ramsey"]["alias_branches"])

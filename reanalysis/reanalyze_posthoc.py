@@ -22,8 +22,9 @@ Uncertainty conventions (labelled everywhere in the output):
   fit σ      : 1-sigma statistical error from the fit covariance, inflated by
                sqrt(reduced χ²) when that exceeds 1. Covers shot noise only.
   sample SD  : standard deviation of a quantity across repeated runs.
-  model range: spread of a quantity across reasonable fit models. A systematic
-               uncertainty; reported when the model fits poorly.
+  spread across tested models: how far a quantity moves across the specific fit
+               models tried. A sensitivity check, NOT a full systematic
+               uncertainty: models not tried could move it further.
 """
 
 import argparse
@@ -101,6 +102,13 @@ def load_qubit_map():
         return {r["job_id"]: r for r in csv.DictReader(fh)}
 
 
+def _float_or_none(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def qubit_of(qmap, jid):
     q = qmap.get(jid, {}).get("physical_qubits", "")
     return q.strip("()").rstrip(",") or None
@@ -161,7 +169,16 @@ def wfit(model, x, y, p0, bounds=(-np.inf, np.inf), weighted=True):
     at_bound = [i for i in range(len(p))
                 if abs(p[i] - lo[i]) < 1e-6 * span[i] or abs(hi[i] - p[i]) < 1e-6 * span[i]]
     return {"p": p, "err": err, "chi2r": chi2r, "rss": float(np.sum(resid ** 2)),
-            "at_bound": at_bound}
+            "at_bound": at_bound,
+            "prediction_in_unit_interval": prediction_in_unit_interval(model, p, x)}
+
+
+def prediction_in_unit_interval(model, p, x, tol=1e-3):
+    """A fitted probability curve must stay within [0, 1] over the swept range.
+    Parameter bounds alone do not guarantee this (e.g. A + B > 1)."""
+    xx = np.linspace(np.min(x), np.max(x), 2001)
+    f = model(xx, *p)
+    return bool(np.all(f >= -tol) and np.all(f <= 1 + tol))
 
 
 def require_identifiable(r, amp_idx, key_idx, what):
@@ -183,7 +200,8 @@ def fit_decay(t, y):
     A, T, B = r["p"]
     return {"T_us": T * 1e6, "fit_sigma_us": r["err"][1] * 1e6, "floor_B": B,
             "red_chi2": r["chi2r"], "single_exp_adequate": r["chi2r"] <= CHI2_FLAG,
-            "params_at_bound": r["at_bound"]}
+            "params_at_bound": r["at_bound"],
+            "prediction_in_unit_interval": r["prediction_in_unit_interval"]}
 
 
 def fit_ramsey_branches(d, y, programmed):
@@ -196,13 +214,15 @@ def fit_ramsey_branches(d, y, programmed):
         out.append({"f_khz": r["p"][1] / 1e3, "fit_sigma_khz": r["err"][1] / 1e3,
                     "T2star_us": r["p"][3] * 1e6, "T2star_fit_sigma_us": r["err"][3] * 1e6,
                     "red_chi2": r["chi2r"], "rss": r["rss"],
-                    "params_at_bound": r["at_bound"]})
+                    "params_at_bound": r["at_bound"],
+                    "prediction_in_unit_interval": r["prediction_in_unit_interval"]})
     return out
 
 
 def ramsey_model_scan(d, y, f0):
     """Refit the Ramsey fringe frequency under several reasonable models. The
-    spread is the systematic (model) uncertainty on the frequency."""
+    spread is a sensitivity check across THESE models, not a complete
+    systematic uncertainty."""
     h = len(d) // 2 + 1
     b5 = BOUNDS["ramsey"]
     b6 = (b5[0] + [-np.inf], b5[1] + [np.inf])
@@ -230,7 +250,20 @@ def fit_rabi(x, y):
     r = wfit(rabi_model, x, y, [-0.5, 2 * np.pi, 0.0, 0.5], BOUNDS["rabi"])
     require_identifiable(r, 0, 1, "Rabi fit")
     return {"period_rad": r["p"][1], "fit_sigma_rad": r["err"][1], "red_chi2": r["chi2r"],
-            "params_at_bound": r["at_bound"]}
+            "params_at_bound": r["at_bound"],
+            "prediction_in_unit_interval": r["prediction_in_unit_interval"]}
+
+
+def sampling_check(d, programmed):
+    """Nyquist analysis is only meaningful for a uniformly spaced sweep."""
+    steps = np.diff(d)
+    uniform = bool(np.allclose(steps, steps[0], rtol=1e-6, atol=0))
+    if not uniform:
+        return {"uniform_spacing": False, "sample_step_us": None, "nyquist_khz": None,
+                "at_nyquist": None}
+    nyq = 1 / (2 * steps[0])
+    return {"uniform_spacing": True, "sample_step_us": steps[0] * 1e6,
+            "nyquist_khz": nyq / 1e3, "at_nyquist": bool(np.isclose(nyq, programmed))}
 
 
 def group(vals):
@@ -244,8 +277,10 @@ def group(vals):
 # --------------------------------------------------------------------------
 # Analysis
 # --------------------------------------------------------------------------
-def analyze(frozen):
-    """frozen: the imported frozen script, or None (weighted fits only)."""
+def analyze(frozen, qmap=None):
+    """frozen: the imported frozen script, or None (weighted fits only).
+    qmap: {job_id: row} from qubit-map.csv; loaded from disk when None. Jobs
+    missing from the map are grouped as "unmapped" rather than failing."""
     if frozen is not None and frozen.DETUNING_SIM != PROGRAMMED_DETUNING:
         raise ValueError("PROGRAMMED_DETUNING no longer matches the frozen script")
     n_pts = ({"t1": frozen.HW_T1_N, "t2": frozen.HW_T2_N, "ramsey": frozen.HW_RAMSEY_N,
@@ -255,8 +290,10 @@ def analyze(frozen):
            "uncertainty_conventions": {
                "fit_sigma": "1-sigma from fit covariance, inflated by sqrt(red. chi2) if >1",
                "sample_sd": "standard deviation across repeated runs",
-               "model_range": "spread across reasonable fit models (systematic)"}}
-    qmap = load_qubit_map()
+               "spread_across_tested_models": "sensitivity across the fit models tried; "
+                                              "not a complete systematic uncertainty"}}
+    if qmap is None:
+        qmap = load_qubit_map()
     out["qubit_map_loaded"] = bool(qmap)
 
     # ---- T1 and T2 echo -------------------------------------------------
@@ -282,31 +319,31 @@ def analyze(frozen):
         if qmap:
             per_q = {}
             for r in ok:
-                per_q.setdefault(r["qubit"], []).append(r)
+                per_q.setdefault(r["qubit"] or "unmapped", []).append(r)
+            col = "ibm_T1_us" if kind == "t1" else "ibm_T2_us"
             out[kind]["per_qubit"] = {
                 q: {"weighted_us": group([r["T_us"] for r in rs]),
                     "fit_sigma_us_per_run": [r["fit_sigma_us"] for r in rs],
                     "frozen_us": group([r["frozen_fit_us"] for r in rs]) if frozen else None,
-                    "ibm_reported_us": float(qmap[rs[0]["job"]][
-                        "ibm_T1_us" if kind == "t1" else "ibm_T2_us"]),
+                    "ibm_reported_us": _float_or_none(qmap.get(rs[0]["job"], {}).get(col)),
                     "jobs": [r["job"] for r in rs]}
                 for q, rs in per_q.items()}
+            unmapped = [r["job"] for r in rows if r["qubit"] is None]
+            if unmapped:
+                out[kind]["unmapped_jobs"] = unmapped
 
     # ---- Ramsey -----------------------------------------------------------
     path = glob.glob(os.path.join(REPO, "fetch_*_ramsey.csv"))[0]
     d, y = load_csv(path, n_pts.get("ramsey"))
-    step = d[1] - d[0]
-    nyq = 1 / (2 * step)
     prog = PROGRAMMED_DETUNING
+    samp = sampling_check(d, prog)
     branches = fit_ramsey_branches(d, y, prog)
     scan = ramsey_model_scan(d, y, branches[0]["f_khz"] * 1e3)
     offs = [abs(s["f_khz"] - prog / 1e3) for s in scan if "f_khz" in s]
     best = branches[0]
     out["ramsey"] = {
         "job": job_id(path), "qubit": qubit_of(qmap, job_id(path)),
-        "programmed_khz": prog / 1e3,
-        "sample_step_us": step * 1e6, "nyquist_khz": nyq / 1e3,
-        "at_nyquist": bool(np.isclose(nyq, prog)),
+        "programmed_khz": prog / 1e3, **samp,
         "frozen_fft_khz": frozen.fit_cos_frequency(d, y) / 1e3 if frozen else None,
         "alias_branches": branches,
         "aliases_indistinguishable": bool(np.isclose(branches[0]["rss"],
@@ -315,7 +352,7 @@ def analyze(frozen):
         "offset_fit_sigma_khz": best["fit_sigma_khz"],
         "single_tone_adequate": best["red_chi2"] <= CHI2_FLAG,
         "model_scan": scan,
-        "offset_model_range_khz": [min(offs), max(offs)] if offs else None,
+        "offset_spread_across_tested_models_khz": [min(offs), max(offs)] if offs else None,
     }
 
     # ---- Rabi ---------------------------------------------------------------
@@ -331,10 +368,12 @@ def analyze(frozen):
     if qmap and "per_qubit" in out["t2"]:
         out["ops_budget"] = {}
         for q, g in out["t2"]["per_qubit"].items():
-            sx = float(qmap[g["jobs"][0]]["sx_ns"]) * 1e-9
+            sx_ns = _float_or_none(qmap.get(g["jobs"][0], {}).get("sx_ns"))
+            if q == "unmapped" or sx_ns is None:
+                continue
             t2q = g["weighted_us"]["mean"] * 1e-6
-            out["ops_budget"][q] = {"T2_echo_us": t2q * 1e6, "sx_ns_ibm_reported": sx * 1e9,
-                                    "ratio": t2q / sx}
+            out["ops_budget"][q] = {"T2_echo_us": t2q * 1e6, "sx_ns_ibm_reported": sx_ns,
+                                    "ratio": t2q / (sx_ns * 1e-9)}
     else:
         t2 = out["t2"]["pooled_all_qubits"]["weighted_us"]["mean"] * 1e-6
         out["ops_budget"] = {"pooled": {"T2_echo_us": t2 * 1e6,
@@ -388,7 +427,7 @@ def report(res, chk):
     if not res["frozen_estimators_available"]:
         print("[frozen estimators unavailable (qiskit not installed): frozen columns show —]")
     print("± conventions: fit σ = statistical, from the fit; sample SD = across runs;"
-          " model range = across fit models\n")
+          " spread = across the fit models tried (a sensitivity check, not a full systematic)\n")
     for kind, label in (("t1", "T1"), ("t2", "T2 echo")):
         print(f"{label}: job | qubit | frozen fit | weighted fit ± fit σ | floor B | red.χ²")
         for r in res[kind]["runs"]:
@@ -400,6 +439,8 @@ def report(res, chk):
                 flags.append("single exponential inadequate")
             if r["params_at_bound"]:
                 flags.append(f"params {r['params_at_bound']} at bound")
+            if not r["prediction_in_unit_interval"]:
+                flags.append("fitted curve leaves [0, 1]")
             flag = f"  <- {'; '.join(flags)}" if flags else ""
             print(f"  {r['job']} | q{r['qubit'] or '?'} | {_num(r['frozen_fit_us'])} us | "
                   f"{r['T_us']:.1f} ± {r['fit_sigma_us']:.1f} us | "
@@ -412,31 +453,37 @@ def report(res, chk):
             print("  per qubit:")
             for q, g in res[kind]["per_qubit"].items():
                 sig = ", ".join(f"{s:.1f}" for s in g["fit_sigma_us_per_run"])
+                ibm = _num(g["ibm_reported_us"])
                 print(f"    q{q}: weighted {_grp(g['weighted_us'])}; fit σ per run [{sig}] us | "
-                      f"frozen {_grp(g['frozen_us'])} | IBM-reported {g['ibm_reported_us']:.1f} us")
+                      f"frozen {_grp(g['frozen_us'])} | IBM-reported {ibm} us")
+            if res[kind].get("unmapped_jobs"):
+                print(f"  WARNING: jobs missing from qubit map: {res[kind]['unmapped_jobs']}")
         print()
 
     r = res["ramsey"]
-    print(f"Ramsey (q{r['qubit'] or '?'}): step {r['sample_step_us']:.1f} us -> Nyquist "
-          f"{r['nyquist_khz']:.1f} kHz (programmed {r['programmed_khz']:.0f} kHz; "
-          f"at Nyquist: {r['at_nyquist']})")
+    if r["uniform_spacing"]:
+        print(f"Ramsey (q{r['qubit'] or '?'}): step {r['sample_step_us']:.1f} us -> Nyquist "
+              f"{r['nyquist_khz']:.1f} kHz (programmed {r['programmed_khz']:.0f} kHz; "
+              f"at Nyquist: {r['at_nyquist']})")
+    else:
+        print(f"Ramsey (q{r['qubit'] or '?'}): NON-UNIFORM sampling; Nyquist analysis not applicable")
     for b in r["alias_branches"]:
         print(f"  branch f = {b['f_khz']:.2f} ± {b['fit_sigma_khz']:.2f} kHz (fit σ), "
               f"T2* = {b['T2star_us']:.1f} ± {b['T2star_fit_sigma_us']:.1f} us, "
               f"red.χ² {b['red_chi2']:.1f}, RSS {b['rss']:.6f}")
     print(f"  aliases indistinguishable: {r['aliases_indistinguishable']}")
-    print("  model scan (systematic):")
+    print("  model scan (sensitivity across the models tried):")
     for s in r["model_scan"]:
         if "fit_failed" in s:
             print(f"    {s['model']:38s} FIT FAILED: {s['fit_failed']}")
         else:
             print(f"    {s['model']:38s} |δ| = {abs(s['f_khz'] - r['programmed_khz']):5.2f} kHz"
                   f"  red.χ² {s['red_chi2']:6.1f}")
-    lo, hi = r["offset_model_range_khz"]
+    lo, hi = r["offset_spread_across_tested_models_khz"]
     adequacy = "" if r["single_tone_adequate"] else \
         f" Single-tone model fits poorly (red.χ² {r['alias_branches'][0]['red_chi2']:.0f})."
     print(f"  -> apparent frame offset |δ| ≈ {r['offset_abs_khz_best_fit']:.1f} kHz "
-          f"(fit σ ±{r['offset_fit_sigma_khz']:.1f}; model range {lo:.1f}–{hi:.1f} kHz); "
+          f"(fit σ ±{r['offset_fit_sigma_khz']:.1f}; spread across tested models {lo:.1f}–{hi:.1f} kHz); "
           f"sign undetermined.{adequacy}")
     print(f"     frozen FFT read {_num(r['frozen_fft_khz'], 2)} kHz\n")
 

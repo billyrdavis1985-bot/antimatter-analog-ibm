@@ -6,7 +6,7 @@
     "uncertainty_conventions": {
       "fit_sigma": "1-sigma from fit covariance, inflated by sqrt(red. chi2) if >1",
       "sample_sd": "standard deviation across repeated runs",
-      "model_range": "spread across reasonable fit models (systematic)"
+      "spread_across_tested_models": "sensitivity across the fit models tried; not a complete systematic uncertainty"
     },
     "qubit_map_loaded": true,
     "t1": {
@@ -20,7 +20,8 @@
           "floor_B": 0.016537944608017018,
           "red_chi2": 4.337982756727744,
           "single_exp_adequate": false,
-          "params_at_bound": []
+          "params_at_bound": [],
+          "prediction_in_unit_interval": true
         },
         {
           "job": "db5she84qg6s73c3u47g",
@@ -31,7 +32,8 @@
           "floor_B": 0.09135434742356657,
           "red_chi2": 10.291710863331147,
           "single_exp_adequate": false,
-          "params_at_bound": []
+          "params_at_bound": [],
+          "prediction_in_unit_interval": true
         },
         {
           "job": "db5sjhimb58s738ausig",
@@ -42,7 +44,8 @@
           "floor_B": 0.09822244679966825,
           "red_chi2": 12.446790703051978,
           "single_exp_adequate": false,
-          "params_at_bound": []
+          "params_at_bound": [],
+          "prediction_in_unit_interval": true
         },
         {
           "job": "db5sjoamb58s738ausq0",
@@ -53,7 +56,8 @@
           "floor_B": 0.09258717906500023,
           "red_chi2": 9.348906529665152,
           "single_exp_adequate": false,
-          "params_at_bound": []
+          "params_at_bound": [],
+          "prediction_in_unit_interval": true
         }
       ],
       "pooled_all_qubits": {
@@ -125,7 +129,8 @@
           "floor_B": 0.5142809484190893,
           "red_chi2": 1.2734224717386862,
           "single_exp_adequate": true,
-          "params_at_bound": []
+          "params_at_bound": [],
+          "prediction_in_unit_interval": true
         },
         {
           "job": "db5t26imb58s738averg",
@@ -136,7 +141,8 @@
           "floor_B": 0.5160873642412591,
           "red_chi2": 2.6165585151402104,
           "single_exp_adequate": true,
-          "params_at_bound": []
+          "params_at_bound": [],
+          "prediction_in_unit_interval": true
         },
         {
           "job": "db5t2hg4qg6s73c3up80",
@@ -147,7 +153,8 @@
           "floor_B": 0.5137150930731647,
           "red_chi2": 1.5736692284679787,
           "single_exp_adequate": true,
-          "params_at_bound": []
+          "params_at_bound": [],
+          "prediction_in_unit_interval": true
         }
       ],
       "pooled_all_qubits": {
@@ -210,6 +217,7 @@
       "job": "db5gdi4vf2bc73cvsa8g",
       "qubit": "70",
       "programmed_khz": 250.0,
+      "uniform_spacing": true,
       "sample_step_us": 2.0,
       "nyquist_khz": 250.0,
       "at_nyquist": true,
@@ -222,7 +230,8 @@
           "T2star_fit_sigma_us": 2.371193228101752,
           "red_chi2": 19.040716562172324,
           "rss": 0.023355352899805167,
-          "params_at_bound": []
+          "params_at_bound": [],
+          "prediction_in_unit_interval": true
         },
         {
           "f_khz": 272.520915816872,
@@ -231,7 +240,8 @@
           "T2star_fit_sigma_us": 2.3711936564795764,
           "red_chi2": 19.040716562012577,
           "rss": 0.023355353291016723,
-          "params_at_bound": []
+          "params_at_bound": [],
+          "prediction_in_unit_interval": true
         }
       ],
       "aliases_indistinguishable": true,
@@ -276,7 +286,7 @@
           "red_chi2": 0.9906476695849092
         }
       ],
-      "offset_model_range_khz": [
+      "offset_spread_across_tested_models_khz": [
         20.68802512112643,
         23.120024038024695
       ]
@@ -288,18 +298,19 @@
       "fit_sigma_rad": 0.007147523011082952,
       "red_chi2": 0.8146092892229485,
       "params_at_bound": [],
+      "prediction_in_unit_interval": true,
       "ideal_rad": 6.283185307179586,
       "note": "Rx(theta) compiles to virtual-Z around fixed sqrt(X) pulses: a gate-phase sweep, not a drive-amplitude Rabi."
     },
     "ops_budget": {
       "6": {
         "T2_echo_us": 94.39920815693013,
-        "sx_ns_ibm_reported": 24.000000000000004,
+        "sx_ns_ibm_reported": 24.0,
         "ratio": 3933.3003398720884
       },
       "70": {
         "T2_echo_us": 85.9451743679807,
-        "sx_ns_ibm_reported": 24.000000000000004,
+        "sx_ns_ibm_reported": 24.0,
         "ratio": 3581.0489319991952
       }
     }

@@ -1,5 +1,7 @@
 # Antimatter-Qubit Analog on IBM Hardware
 
+[![tests](https://github.com/billyrdavis1985-bot/antimatter-analog-ibm/actions/workflows/tests.yml/badge.svg)](https://github.com/billyrdavis1985-bot/antimatter-analog-ibm/actions/workflows/tests.yml)
+
 Runs the BASE experiment's *protocol* — not its particle — on IBM quantum
 hardware via the cloud.
 
@@ -84,7 +86,7 @@ antimatter-analog-ibm/
 ├── reanalysis/
 │   ├── reanalyze_posthoc.py      # re-fits the raw CSVs; frozen vs corrected, side by side
 │   ├── reanalysis-2026-10-11.json  # its full output
-│   ├── test_reanalyze.py         # regression tests: python -m pytest reanalysis/
+│   ├── test_reanalyze.py         # regression tests (run in CI: .github/workflows/tests.yml)
 │   ├── recover_qubits.py         # physical qubit + IBM calibration per job (no QPU time)
 │   └── qubit-map.csv             # its output: which qubit each job ran on
 ├── FROZEN-MANIFEST.txt            # SHA256 of the frozen script (amend B current)
@@ -114,13 +116,15 @@ The originally published values are kept for the record. Why each one changed:
 `ERRATA-2026-10-11.md`.
 
 Every ± is labelled by type. **Fit σ** is the statistical error from one fit. **Sample
-SD** is the spread across repeated runs. A **range** shows how much the value moves
-between fit models or estimators, which is a systematic uncertainty.
+SD** is the spread across repeated runs. A **range** or **spread** shows how much the
+value moves between the specific fit models or estimators tried. That is a
+sensitivity check, not a complete systematic uncertainty: models not tried could move
+it further.
 
 | Experiment | Corrected | As first published | Note |
 |---|---|---|---|
 | Rabi | 6.284 ± 0.007 rad (fit σ) | 6.187 rad | Recovers 2π. The earlier −1.53% was an estimator artifact. End-to-end plumbing test, not an amplitude Rabi. |
-| Ramsey (qubit 70) | apparent frame offset \|δ\| ≈ 22.5 kHz (fit σ ±0.4; model range 20.7–23.1 kHz), sign undetermined; T2\* ≈ 39 µs | 225.59 kHz, "dephasing" | Sweep sampled exactly at Nyquist (250 kHz). The single-frequency model fits poorly (reduced χ² 19). A non-zero offset appears in all six fit models; its exact value is model-dependent and its cause is not identified. |
+| Ramsey (qubit 70) | apparent frame offset \|δ\| ≈ 22.5 kHz (fit σ ±0.4; spread across tested models 20.7–23.1 kHz), sign undetermined; T2\* ≈ 39 µs | 225.59 kHz, "dephasing" | Sweep sampled exactly at Nyquist (250 kHz). The single-frequency model fits poorly (reduced χ² 19). A non-zero offset appears in all six fit models tried; its exact value depends on the model, and its cause is not identified. |
 | T1, qubit 6 (n=3) | 108–125 µs (estimator range; weighted 108.5 ± 2.8 sample SD) | 124.7 ± 1.1 µs | IBM's calibration: 133.9 µs. Single exponential fits poorly (reduced χ² 9–12). |
 | T1, qubit 70 (n=1) | 74–79 µs (estimator range) | 78.7 µs, "outlier" | Different qubit confirmed from job records; not an outlier. IBM: 95.6 µs. |
 | T2 echo, qubit 70 (n=2) | 85.9 ± 3.0 µs (sample SD of 2 runs; fit σ 2.5–3.4 per run) | pooled 109.2 µs | Matches IBM's 84.4 µs; frozen estimator read high. |
