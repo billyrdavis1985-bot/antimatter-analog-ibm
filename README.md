@@ -70,7 +70,8 @@ antimatter-analog-ibm/
 ├── reanalysis/
 │   ├── reanalyze_posthoc.py      # re-fits the raw CSVs; frozen vs corrected, side by side
 │   ├── reanalysis-2026-10-11.json  # its full output
-│   └── recover_qubits.py         # physical qubit + IBM calibration per job (no QPU time)
+│   ├── recover_qubits.py         # physical qubit + IBM calibration per job (no QPU time)
+│   └── qubit-map.csv             # its output: which qubit each job ran on
 ├── FROZEN-MANIFEST.txt            # SHA256 of the frozen script (amend B current)
 ├── FROZEN-MANIFEST-SUPERSEDED-2026-10-11-amendA.txt   # amend A manifest (fit fixes)
 ├── FROZEN-MANIFEST-SUPERSEDED-2026-10-09.txt          # original manifest
@@ -100,12 +101,16 @@ are kept for the record. Why each one changed: `ERRATA-2026-10-11.md`.
 |---|---|---|---|
 | Rabi | 6.284 ± 0.007 rad | 6.187 rad | Recovers 2π. The earlier −1.53% was an estimator artifact. End-to-end plumbing test, not an amplitude Rabi. |
 | Ramsey | qubit frame offset \|δ\| = 22.5 ± 0.4 kHz (sign undetermined); T2\* ≈ 39 µs | 225.59 kHz, "dephasing" | Sweep sampled exactly at Nyquist (250 kHz). The offset is a real physical frequency measurement. |
-| T1 reps 2–4 | 107–126 µs (model-dependent) | 124.7 ± 1.1 µs | Single exponential fits poorly (reduced χ² 9–12). |
-| T1 rep 1 | 74–79 µs | 78.7 µs, "outlier" | Qubit never recorded; outlier attribution unverified. |
-| T2 echo (n=3) | 88.8 ± 5.3 µs | 109.2 ± 11.8 µs | Frozen estimator read high on this sweep. T2/T1 ≈ 0.8. |
+| T1, qubit 6 (n=3) | 108–125 µs (model-dependent) | 124.7 ± 1.1 µs | IBM's calibration: 133.9 µs. Single exponential fits poorly (reduced χ² 9–12). |
+| T1, qubit 70 (n=1) | 74–79 µs | 78.7 µs, "outlier" | Different qubit confirmed from job records; not an outlier. IBM: 95.6 µs. |
+| T2 echo, qubit 70 (n=2) | 85.9 ± 3.0 µs | pooled 109.2 µs | Matches IBM's 84.4 µs; frozen estimator read high. |
+| T2 echo, qubit 6 (n=1) | 94–111 µs | pooled 109.2 µs | IBM: 121.1 µs. |
 
-**Coherent-ops budget:** about 1.5×10³ for the transmon (T2 echo over an
-*assumed* 60 ns gate). The comparison to BASE is **withdrawn**. The *Nature*
+Physical qubits per job are in `reanalysis/qubit-map.csv`. The originally published
+T1 (n=4) and T2 (n=3) averages mixed two qubits and are withdrawn.
+
+**Coherent-ops budget:** about 3.6–3.9×10³ for the transmon (T2 echo per qubit
+over IBM's reported 24 ns sx gate). The comparison to BASE is **withdrawn**. The *Nature*
 paper's Rabi frequency (~50 mHz) and 16 s drive time put BASE at a few coherent
 operations per coherence time, not 5×10⁴. BASE's figure of merit is linewidth
 from long interrogation, not operation count.
@@ -123,7 +128,8 @@ Their hashes match the files they list, except README.md, which has changed sinc
 (zero-padded), tightened sim gate 15%→5%. Amend B: added T2-echo hardware path.
 - Sim selftest passes on the current script from a clean venv with the pins above
 (`selftest-transcript-2026-10-11-amendB.txt`).
-- The physical qubit per job was not recorded at run time. `reanalysis/recover_qubits.py`
-recovers it from IBM's job records without using QPU time.
+- The physical qubit per job was not recorded at run time. It was recovered afterwards
+from IBM's job records (`reanalysis/recover_qubits.py`, no QPU time) and is committed
+as `reanalysis/qubit-map.csv`.
 - Post-hoc corrections are logged as deviations in `ERRATA-2026-10-11.md`; the frozen
 script is never edited after freeze.

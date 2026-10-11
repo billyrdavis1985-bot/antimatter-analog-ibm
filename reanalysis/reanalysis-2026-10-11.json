@@ -2,10 +2,12 @@
   "results": {
     "deviation": "post-hoc reanalysis, not preregistered",
     "shots": 4000,
+    "qubit_map_loaded": true,
     "t1": {
       "runs": [
         {
           "job": "db5nptsvf2bc73d06960",
+          "qubit": "70",
           "frozen_fit_us": 78.71533599383771,
           "nlls_us": 74.29731452164009,
           "nlls_err_us": 1.320797918431925,
@@ -15,6 +17,7 @@
         },
         {
           "job": "db5she84qg6s73c3u47g",
+          "qubit": "6",
           "frozen_fit_us": 123.6660367845311,
           "nlls_us": 107.19995454543238,
           "nlls_err_us": 4.333325735220501,
@@ -24,6 +27,7 @@
         },
         {
           "job": "db5sjhimb58s738ausig",
+          "qubit": "6",
           "frozen_fit_us": 124.50197908662639,
           "nlls_us": 106.65191092786117,
           "nlls_err_us": 5.024298616365595,
@@ -33,6 +37,7 @@
         },
         {
           "job": "db5sjoamb58s738ausq0",
+          "qubit": "6",
           "frozen_fit_us": 125.88280952596811,
           "nlls_us": 111.79524191451075,
           "nlls_err_us": 4.450655998002684,
@@ -50,12 +55,49 @@
         "mean": 113.19154034774084,
         "sd": 23.002304812610447,
         "n": 4
+      },
+      "per_qubit": {
+        "70": {
+          "nlls_us": {
+            "mean": 74.29731452164009,
+            "sd": null,
+            "n": 1
+          },
+          "frozen_us": {
+            "mean": 78.71533599383771,
+            "sd": null,
+            "n": 1
+          },
+          "ibm_reported_us": 95.6,
+          "jobs": [
+            "db5nptsvf2bc73d06960"
+          ]
+        },
+        "6": {
+          "nlls_us": {
+            "mean": 108.54903579593476,
+            "sd": 2.824620076204988,
+            "n": 3
+          },
+          "frozen_us": {
+            "mean": 124.68360846570853,
+            "sd": 1.1194919697362127,
+            "n": 3
+          },
+          "ibm_reported_us": 133.9,
+          "jobs": [
+            "db5she84qg6s73c3u47g",
+            "db5sjhimb58s738ausig",
+            "db5sjoamb58s738ausq0"
+          ]
+        }
       }
     },
     "t2": {
       "runs": [
         {
           "job": "db5sjvslf4us73c4ga90",
+          "qubit": "6",
           "frozen_fit_us": 111.11059872515925,
           "nlls_us": 94.39883149228287,
           "nlls_err_us": 2.715368536173983,
@@ -65,6 +107,7 @@
         },
         {
           "job": "db5t26imb58s738averg",
+          "qubit": "70",
           "frozen_fit_us": 119.98928756538287,
           "nlls_us": 88.08066011506814,
           "nlls_err_us": 3.4289396459433776,
@@ -74,6 +117,7 @@
         },
         {
           "job": "db5t2hg4qg6s73c3up80",
+          "qubit": "70",
           "frozen_fit_us": 96.58324621465273,
           "nlls_us": 83.80922826140964,
           "nlls_err_us": 2.484205537575716,
@@ -91,10 +135,46 @@
         "mean": 109.22771083506495,
         "sd": 11.816075618961655,
         "n": 3
+      },
+      "per_qubit": {
+        "6": {
+          "nlls_us": {
+            "mean": 94.39883149228287,
+            "sd": null,
+            "n": 1
+          },
+          "frozen_us": {
+            "mean": 111.11059872515925,
+            "sd": null,
+            "n": 1
+          },
+          "ibm_reported_us": 121.1,
+          "jobs": [
+            "db5sjvslf4us73c4ga90"
+          ]
+        },
+        "70": {
+          "nlls_us": {
+            "mean": 85.94494418823889,
+            "sd": 3.020358429098149,
+            "n": 2
+          },
+          "frozen_us": {
+            "mean": 108.2862668900178,
+            "sd": 16.550570559834018,
+            "n": 2
+          },
+          "ibm_reported_us": 84.4,
+          "jobs": [
+            "db5t26imb58s738averg",
+            "db5t2hg4qg6s73c3up80"
+          ]
+        }
       }
     },
     "ramsey": {
       "job": "db5gdi4vf2bc73cvsa8g",
+      "qubit": "70",
       "programmed_khz": 250.0,
       "sample_step_us": 2.0,
       "nyquist_khz": 250.0,
@@ -132,9 +212,16 @@
       "note": "Rx(theta) compiles to virtual-Z around fixed sqrt(X) pulses: a gate-phase sweep, not a drive-amplitude Rabi."
     },
     "ops_budget": {
-      "T2_echo_us": 88.76290662292023,
-      "gate_time_ns_ASSUMED": 59.99999999999999,
-      "ratio": 1479.3817770486705
+      "6": {
+        "T2_echo_us": 94.39883149228287,
+        "sx_ns_MEASURED": 24.000000000000004,
+        "ratio": 3933.2846455117856
+      },
+      "70": {
+        "T2_echo_us": 85.94494418823889,
+        "sx_ns_MEASURED": 24.000000000000004,
+        "ratio": 3581.03934117662
+      }
     }
   },
   "estimator_checks": {

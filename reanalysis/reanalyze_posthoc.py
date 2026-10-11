@@ -86,8 +86,26 @@ def group(vals):
             "n": int(len(v))}
 
 
+def load_qubit_map():
+    """reanalysis/qubit-map.csv (from recover_qubits.py), keyed by job id.
+    Returns {} if the map has not been generated yet."""
+    import csv
+    path = os.path.join(REPO, "reanalysis", "qubit-map.csv")
+    if not os.path.exists(path):
+        return {}
+    with open(path, newline="") as fh:
+        return {r["job_id"]: r for r in csv.DictReader(fh)}
+
+
+def qubit_of(qmap, jid):
+    q = qmap.get(jid, {}).get("physical_qubits", "")
+    return q.strip("()").rstrip(",") or None
+
+
 def analyze(frozen):
     out = {"deviation": "post-hoc reanalysis, not preregistered", "shots": SHOTS}
+    qmap = load_qubit_map()
+    out["qubit_map_loaded"] = bool(qmap)
 
     # ---- T1 and T2 echo -------------------------------------------------
     for kind in ("t1", "t2"):
@@ -96,8 +114,10 @@ def analyze(frozen):
             t, y = load_csv(path)
             (A, T, B), (sA, sT, sB), chi2r, _ = wfit(
                 expdec, t, y, [y[0] - y[-1], 100e-6, y[-1]])
+            jid = job_id(path)
             rows.append({
-                "job": job_id(path),
+                "job": jid,
+                "qubit": qubit_of(qmap, jid),
                 "frozen_fit_us": frozen.fit_exponential(t, y) * 1e6 if frozen else None,
                 "nlls_us": T * 1e6, "nlls_err_us": sT * 1e6,
                 "floor_B": B, "red_chi2": chi2r,
@@ -107,6 +127,18 @@ def analyze(frozen):
                      "nlls_group_us": group([r["nlls_us"] for r in rows]),
                      "frozen_group_us": group([r["frozen_fit_us"] for r in rows])
                      if frozen else None}
+        # Pooling across physical qubits mixes devices: group per qubit when known.
+        if qmap:
+            per_q = {}
+            for r in rows:
+                per_q.setdefault(r["qubit"], []).append(r)
+            out[kind]["per_qubit"] = {
+                q: {"nlls_us": group([r["nlls_us"] for r in rs]),
+                    "frozen_us": group([r["frozen_fit_us"] for r in rs]) if frozen else None,
+                    "ibm_reported_us": float(qmap[rs[0]["job"]][
+                        "ibm_T1_us" if kind == "t1" else "ibm_T2_us"]),
+                    "jobs": [r["job"] for r in rs]}
+                for q, rs in per_q.items()}
 
     # ---- Ramsey -----------------------------------------------------------
     path = glob.glob(os.path.join(REPO, "fetch_*_ramsey.csv"))[0]
@@ -122,7 +154,8 @@ def analyze(frozen):
                          "red_chi2": chi2r, "rss": rss})
     offs = [abs(b["f_khz"] - prog / 1e3) for b in branches]
     out["ramsey"] = {
-        "job": job_id(path), "programmed_khz": prog / 1e3,
+        "job": job_id(path), "qubit": qubit_of(qmap, job_id(path)),
+        "programmed_khz": prog / 1e3,
         "sample_step_us": step * 1e6, "nyquist_khz": nyq / 1e3,
         "at_nyquist": bool(np.isclose(nyq, prog)),
         "frozen_fft_khz": frozen.fit_cos_frequency(d, y) / 1e3 if frozen else None,
@@ -145,10 +178,19 @@ def analyze(frozen):
                            "pulses: a gate-phase sweep, not a drive-amplitude Rabi."}
 
     # ---- Coherent-ops budget (transmon side only) -------------------------
-    t2 = out["t2"]["nlls_group_us"]["mean"] * 1e-6
-    out["ops_budget"] = {"T2_echo_us": t2 * 1e6,
-                         "gate_time_ns_ASSUMED": GATE_TIME_ASSUMED * 1e9,
-                         "ratio": t2 / GATE_TIME_ASSUMED}
+    if qmap and "per_qubit" in out["t2"]:
+        # Measured sx duration per qubit from IBM calibration, per-qubit T2 echo.
+        out["ops_budget"] = {}
+        for q, g in out["t2"]["per_qubit"].items():
+            sx = float(qmap[g["jobs"][0]]["sx_ns"]) * 1e-9
+            t2q = g["nlls_us"]["mean"] * 1e-6
+            out["ops_budget"][q] = {"T2_echo_us": t2q * 1e6, "sx_ns_MEASURED": sx * 1e9,
+                                    "ratio": t2q / sx}
+    else:
+        t2 = out["t2"]["nlls_group_us"]["mean"] * 1e-6
+        out["ops_budget"] = {"pooled": {"T2_echo_us": t2 * 1e6,
+                                        "gate_time_ns_ASSUMED": GATE_TIME_ASSUMED * 1e9,
+                                        "ratio": t2 / GATE_TIME_ASSUMED}}
     return out
 
 
@@ -180,16 +222,23 @@ def report(res, chk):
     f = lambda v, n=1: "—" if v is None else f"{v:.{n}f}"
     print("POST-HOC REANALYSIS (deviation; frozen script untouched)\n")
     for kind, label in (("t1", "T1"), ("t2", "T2 echo")):
-        print(f"{label}: job | frozen fit | weighted NLLS ±1σ | floor B | red.χ²")
+        print(f"{label}: job | qubit | frozen fit | weighted NLLS ±1σ | floor B | red.χ²")
         for r in res[kind]["runs"]:
             flag = "" if r["single_exp_adequate"] else "  <- single exponential inadequate"
-            print(f"  {r['job']} | {f(r['frozen_fit_us'])} us | "
+            print(f"  {r['job']} | q{r['qubit'] or '?'} | {f(r['frozen_fit_us'])} us | "
                   f"{r['nlls_us']:.1f} ± {r['nlls_err_us']:.1f} us | "
                   f"{r['floor_B']:.3f} | {r['red_chi2']:.2f}{flag}")
         g, fg = res[kind]["nlls_group_us"], res[kind]["frozen_group_us"]
         print(f"  NLLS   mean {g['mean']:.1f} ± {g['sd']:.1f} us (sample SD, n={g['n']})")
         if fg:
             print(f"  frozen mean {fg['mean']:.1f} ± {fg['sd']:.1f} us (as published)")
+        if "per_qubit" in res[kind]:
+            print("  pooled means above MIX QUBITS; per qubit:")
+            for q, g in res[kind]["per_qubit"].items():
+                sd = lambda d: "" if d["sd"] is None else f" ± {d['sd']:.1f}"
+                print(f"    q{q} (n={g['nlls_us']['n']}): NLLS {g['nlls_us']['mean']:.1f}"
+                      f"{sd(g['nlls_us'])} us | frozen {g['frozen_us']['mean']:.1f}"
+                      f"{sd(g['frozen_us'])} us | IBM-reported {g['ibm_reported_us']:.1f} us")
         print()
     r = res["ramsey"]
     print(f"Ramsey: step {r['sample_step_us']:.1f} us -> Nyquist {r['nyquist_khz']:.1f} kHz "
@@ -204,9 +253,12 @@ def report(res, chk):
     r = res["rabi"]
     print(f"Rabi: NLLS period {r['nlls_period_rad']:.3f} ± {r['nlls_err_rad']:.3f} rad "
           f"(ideal {r['ideal_rad']:.3f}; frozen FFT {f(r['frozen_fft_rad'], 3)})\n")
-    o = res["ops_budget"]
-    print(f"Ops budget: T2 echo {o['T2_echo_us']:.1f} us / {o['gate_time_ns_ASSUMED']:.0f} ns "
-          f"(ASSUMED gate time) = {o['ratio']:.2e}\n")
+    for q, o in res["ops_budget"].items():
+        gate = (f"{o['sx_ns_MEASURED']:.0f} ns (IBM-reported sx)" if "sx_ns_MEASURED" in o
+                else f"{o['gate_time_ns_ASSUMED']:.0f} ns (ASSUMED)")
+        print(f"Ops budget [{'q' + q if q != 'pooled' else q}]: T2 echo "
+              f"{o['T2_echo_us']:.1f} us / {gate} = {o['ratio']:.2e}")
+    print()
     if chk:
         print("Frozen-estimator checks on the HARDWARE grids (noiseless synthetic):")
         for k, v in chk.items():
