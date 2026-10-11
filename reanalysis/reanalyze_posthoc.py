@@ -11,12 +11,23 @@ every correction in ERRATA-2026-10-11.md can be reproduced from raw data.
 Usage (from repo root, inside the README venv):
     ./.venv/bin/python -I reanalysis/reanalyze_posthoc.py            # fits + checks
     ./.venv/bin/python -I reanalysis/reanalyze_posthoc.py --json out.json
+Tests:
+    ./.venv/bin/python -m pytest reanalysis/
 
-Needs numpy + scipy. Imports the frozen estimators from the frozen script for
-the side-by-side column (needs qiskit/qiskit-aer, as in the README install).
+Needs numpy + scipy. The side-by-side "frozen" column imports the frozen
+estimators from the frozen script, which needs qiskit/qiskit-aer. Without them
+the script still runs and reports the weighted fits only.
+
+Uncertainty conventions (labelled everywhere in the output):
+  fit σ      : 1-sigma statistical error from the fit covariance, inflated by
+               sqrt(reduced χ²) when that exceeds 1. Covers shot noise only.
+  sample SD  : standard deviation of a quantity across repeated runs.
+  model range: spread of a quantity across reasonable fit models. A systematic
+               uncertainty; reported when the model fits poorly.
 """
 
 import argparse
+import csv
 import glob
 import importlib.util
 import json
@@ -30,9 +41,25 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FROZEN = os.path.join(REPO, "antimatter_analog_ibm.py")
 SHOTS = 4000                 # per circuit, all ibm_fez jobs (RESULTS-2026-10-11.md)
 CHI2_FLAG = 3.0              # reduced chi^2 above this: model inadequate, say so
-GATE_TIME_ASSUMED = 60e-9    # same assumption as the frozen script; NOT measured
+GATE_TIME_ASSUMED = 60e-9    # the frozen script's assumption; used only without a qubit map
+PROGRAMMED_DETUNING = 250e3  # Hz; equals DETUNING_SIM in the frozen script (checked when importable)
+
+# Physical bounds (lower, upper) per model parameter. Fits that land on a
+# bound are flagged, since the bound rather than the data then sets the value.
+BOUNDS = {
+    "expdec": ([0.0, 1e-6, -0.1], [1.5, 1e-2, 1.0]),                       # A, T, B
+    "ramsey": ([-1.0, 1e3, -np.inf, 1e-7, 0.0], [1.0, 1e6, np.inf, 1e-2, 1.0]),  # A, f, phi, T2*, B
+    "rabi": ([-1.0, 0.5, -np.inf, 0.0], [1.0, 50.0, np.inf, 1.0]),         # A, P, phi, B
+}
 
 
+class FitError(RuntimeError):
+    """A fit that did not converge or whose parameters are not identifiable."""
+
+
+# --------------------------------------------------------------------------
+# Inputs
+# --------------------------------------------------------------------------
 def load_frozen():
     spec = importlib.util.spec_from_file_location("frozen", FROZEN)
     mod = importlib.util.module_from_spec(spec)
@@ -40,9 +67,23 @@ def load_frozen():
     return mod
 
 
-def load_csv(path):
-    d = np.loadtxt(path, delimiter=",")
-    return d[:, 0], d[:, 1]
+def load_csv(path, expected_points=None):
+    """Load a fetch_*.csv and validate it: two columns, finite values,
+    strictly increasing sweep, P1 within [0, 1], optional expected length."""
+    d = np.atleast_2d(np.loadtxt(path, delimiter=","))
+    name = os.path.basename(path)
+    if d.shape[1] != 2:
+        raise ValueError(f"{name}: expected 2 columns, got {d.shape[1]}")
+    x, y = d[:, 0], d[:, 1]
+    if not (np.all(np.isfinite(x)) and np.all(np.isfinite(y))):
+        raise ValueError(f"{name}: non-finite values")
+    if np.any(np.diff(x) <= 0):
+        raise ValueError(f"{name}: sweep values are not strictly increasing")
+    if np.any((y < 0) | (y > 1)):
+        raise ValueError(f"{name}: P1 outside [0, 1]")
+    if expected_points is not None and len(x) != expected_points:
+        raise ValueError(f"{name}: {len(x)} points, expected {expected_points}")
+    return x, y
 
 
 def job_id(path):
@@ -50,46 +91,9 @@ def job_id(path):
     return os.path.basename(path)[len("fetch_"):].rsplit("_", 1)[0]
 
 
-def binomial_sigma(p, shots=SHOTS):
-    # Floor avoids zero weight at P1 = 0 or 1.
-    return np.sqrt(np.clip(p * (1 - p), 1.0 / shots, None) / shots)
-
-
-def wfit(model, x, y, p0, **kw):
-    """Weighted NLLS. Returns params, 1-sigma errors (inflated by
-    sqrt(reduced chi^2) when it exceeds 1), reduced chi^2, RSS."""
-    sig = binomial_sigma(y)
-    p, cov = curve_fit(model, x, y, p0=p0, sigma=sig, absolute_sigma=True,
-                       maxfev=50000, **kw)
-    resid = y - model(x, *p)
-    dof = len(x) - len(p)
-    chi2r = float(np.sum((resid / sig) ** 2) / dof)
-    err = np.sqrt(np.diag(cov)) * np.sqrt(max(chi2r, 1.0))
-    return p, err, chi2r, float(np.sum(resid ** 2))
-
-
-def expdec(t, A, T, B):
-    return A * np.exp(-t / T) + B
-
-
-def ramsey_model(t, A, f, phi, T2s, B):
-    return A * np.exp(-t / T2s) * np.cos(2 * np.pi * f * t + phi) + B
-
-
-def rabi_model(x, A, P, phi, B):
-    return A * np.cos(2 * np.pi * x / P + phi) + B
-
-
-def group(vals):
-    v = np.asarray(vals, dtype=float)
-    return {"mean": float(v.mean()), "sd": float(v.std(ddof=1)) if len(v) > 1 else None,
-            "n": int(len(v))}
-
-
 def load_qubit_map():
     """reanalysis/qubit-map.csv (from recover_qubits.py), keyed by job id.
     Returns {} if the map has not been generated yet."""
-    import csv
     path = os.path.join(REPO, "reanalysis", "qubit-map.csv")
     if not os.path.exists(path):
         return {}
@@ -102,8 +106,156 @@ def qubit_of(qmap, jid):
     return q.strip("()").rstrip(",") or None
 
 
+# --------------------------------------------------------------------------
+# Models and fitting
+# --------------------------------------------------------------------------
+def expdec(t, A, T, B):
+    return A * np.exp(-t / T) + B
+
+
+def ramsey_model(t, A, f, phi, T2s, B):
+    return A * np.exp(-t / T2s) * np.cos(2 * np.pi * f * t + phi) + B
+
+
+def ramsey_gauss(t, A, f, phi, T2s, B):
+    return A * np.exp(-(t / T2s) ** 2) * np.cos(2 * np.pi * f * t + phi) + B
+
+
+def ramsey_drift(t, A, f, phi, T2s, B, C):
+    return A * np.exp(-t / T2s) * np.cos(2 * np.pi * f * t + phi) + B + C * t
+
+
+def rabi_model(x, A, P, phi, B):
+    return A * np.cos(2 * np.pi * x / P + phi) + B
+
+
+def binomial_sigma(p, shots=SHOTS):
+    # Floor avoids zero weight at P1 = 0 or 1.
+    return np.sqrt(np.clip(p * (1 - p), 1.0 / shots, None) / shots)
+
+
+def wfit(model, x, y, p0, bounds=(-np.inf, np.inf), weighted=True):
+    """Least-squares fit with safeguards. Returns a dict with params, fit σ
+    (inflated by sqrt(reduced χ²) when it exceeds 1), reduced χ², RSS, and
+    the indices of any parameters that ended on a bound.
+    Raises FitError if the fit fails or the covariance is not finite."""
+    sig = binomial_sigma(y)
+    try:
+        p, cov = curve_fit(model, x, y, p0=p0, sigma=sig if weighted else None,
+                           absolute_sigma=weighted, bounds=bounds, maxfev=50000)
+    except (RuntimeError, ValueError) as exc:
+        raise FitError(f"{model.__name__}: did not converge ({exc})") from exc
+    if not np.all(np.isfinite(cov)):
+        raise FitError(f"{model.__name__}: covariance not finite (parameters not identifiable)")
+    resid = y - model(x, *p)
+    dof = len(x) - len(p)
+    if dof <= 0:
+        raise FitError(f"{model.__name__}: {len(x)} points for {len(p)} parameters")
+    chi2r = float(np.sum((resid / sig) ** 2) / dof)
+    # Weighted fits: inflate by sqrt(red. chi2) when the model underfits. Unweighted
+    # fits: curve_fit already scales the covariance to the residual scatter, so a
+    # second inflation would double-count.
+    err = np.sqrt(np.diag(cov)) * (np.sqrt(max(chi2r, 1.0)) if weighted else 1.0)
+    lo, hi = np.broadcast_to(bounds[0], p.shape), np.broadcast_to(bounds[1], p.shape)
+    span = np.where(np.isfinite(hi - lo), hi - lo, 1.0)
+    at_bound = [i for i in range(len(p))
+                if abs(p[i] - lo[i]) < 1e-6 * span[i] or abs(hi[i] - p[i]) < 1e-6 * span[i]]
+    return {"p": p, "err": err, "chi2r": chi2r, "rss": float(np.sum(resid ** 2)),
+            "at_bound": at_bound}
+
+
+def require_identifiable(r, amp_idx, key_idx, what):
+    """A fit can converge with a finite covariance and still be meaningless:
+    if the signal amplitude is not significant, the time constant or frequency
+    is set by nothing. Reject both cases explicitly."""
+    A, sA = abs(r["p"][amp_idx]), r["err"][amp_idx]
+    K, sK = abs(r["p"][key_idx]), r["err"][key_idx]
+    if A < 3 * sA:
+        raise FitError(f"{what}: signal amplitude not significant ({A:.3g} ± {sA:.2g})")
+    if sK > 0.5 * K:
+        raise FitError(f"{what}: parameter not identifiable (relative fit σ {sK / K:.0%})")
+
+
+def fit_decay(t, y):
+    """T1 or T2-echo decay: A·exp(-t/T) + B."""
+    r = wfit(expdec, t, y, [max(y[0] - y[-1], 0.05), 100e-6, y[-1]], BOUNDS["expdec"])
+    require_identifiable(r, 0, 1, "decay fit")
+    A, T, B = r["p"]
+    return {"T_us": T * 1e6, "fit_sigma_us": r["err"][1] * 1e6, "floor_B": B,
+            "red_chi2": r["chi2r"], "single_exp_adequate": r["chi2r"] <= CHI2_FLAG,
+            "params_at_bound": r["at_bound"]}
+
+
+def fit_ramsey_branches(d, y, programmed):
+    """Fit starting on each side of `programmed`. If the sweep samples at the
+    Nyquist limit, both branches reach identical residuals (an alias pair)."""
+    out = []
+    for f0 in (programmed - 25e3, programmed + 25e3):
+        r = wfit(ramsey_model, d, y, [-0.45, f0, 0.0, 40e-6, 0.5], BOUNDS["ramsey"])
+        require_identifiable(r, 0, 1, "Ramsey fit")
+        out.append({"f_khz": r["p"][1] / 1e3, "fit_sigma_khz": r["err"][1] / 1e3,
+                    "T2star_us": r["p"][3] * 1e6, "T2star_fit_sigma_us": r["err"][3] * 1e6,
+                    "red_chi2": r["chi2r"], "rss": r["rss"],
+                    "params_at_bound": r["at_bound"]})
+    return out
+
+
+def ramsey_model_scan(d, y, f0):
+    """Refit the Ramsey fringe frequency under several reasonable models. The
+    spread is the systematic (model) uncertainty on the frequency."""
+    h = len(d) // 2 + 1
+    b5 = BOUNDS["ramsey"]
+    b6 = (b5[0] + [-np.inf], b5[1] + [np.inf])
+    specs = [
+        ("exponential envelope, weighted", ramsey_model, d, y, [-0.45, f0, 0, 40e-6, 0.5], b5, True),
+        ("exponential envelope, unweighted", ramsey_model, d, y, [-0.45, f0, 0, 40e-6, 0.5], b5, False),
+        ("Gaussian envelope", ramsey_gauss, d, y, [-0.45, f0, 0, 40e-6, 0.5], b5, True),
+        ("exponential + linear baseline drift", ramsey_drift, d, y, [-0.45, f0, 0, 40e-6, 0.5, 0], b6, True),
+        ("first half of sweep only", ramsey_model, d[:h], y[:h], [-0.45, f0, 0, 40e-6, 0.5], b5, True),
+        ("second half of sweep only", ramsey_model, d[h - 1:], y[h - 1:], [-0.3, f0, 0, 40e-6, 0.5], b5, True),
+    ]
+    rows = []
+    for name, model, x, yy, p0, bnds, w in specs:
+        try:
+            r = wfit(model, x, yy, p0, bnds, weighted=w)
+            require_identifiable(r, 0, 1, name)
+            rows.append({"model": name, "f_khz": r["p"][1] / 1e3,
+                         "fit_sigma_khz": r["err"][1] / 1e3, "red_chi2": r["chi2r"]})
+        except FitError as exc:
+            rows.append({"model": name, "fit_failed": str(exc)})
+    return rows
+
+
+def fit_rabi(x, y):
+    r = wfit(rabi_model, x, y, [-0.5, 2 * np.pi, 0.0, 0.5], BOUNDS["rabi"])
+    require_identifiable(r, 0, 1, "Rabi fit")
+    return {"period_rad": r["p"][1], "fit_sigma_rad": r["err"][1], "red_chi2": r["chi2r"],
+            "params_at_bound": r["at_bound"]}
+
+
+def group(vals):
+    """Mean and sample SD across runs (SD is None for a single run)."""
+    v = np.asarray(vals, dtype=float)
+    return {"mean": float(v.mean()),
+            "sample_sd": float(v.std(ddof=1)) if len(v) > 1 else None,
+            "n": int(len(v))}
+
+
+# --------------------------------------------------------------------------
+# Analysis
+# --------------------------------------------------------------------------
 def analyze(frozen):
-    out = {"deviation": "post-hoc reanalysis, not preregistered", "shots": SHOTS}
+    """frozen: the imported frozen script, or None (weighted fits only)."""
+    if frozen is not None and frozen.DETUNING_SIM != PROGRAMMED_DETUNING:
+        raise ValueError("PROGRAMMED_DETUNING no longer matches the frozen script")
+    n_pts = ({"t1": frozen.HW_T1_N, "t2": frozen.HW_T2_N, "ramsey": frozen.HW_RAMSEY_N,
+              "rabi": frozen.HW_RABI_N} if frozen else {})
+    out = {"deviation": "post-hoc reanalysis, not preregistered", "shots": SHOTS,
+           "frozen_estimators_available": frozen is not None,
+           "uncertainty_conventions": {
+               "fit_sigma": "1-sigma from fit covariance, inflated by sqrt(red. chi2) if >1",
+               "sample_sd": "standard deviation across repeated runs",
+               "model_range": "spread across reasonable fit models (systematic)"}}
     qmap = load_qubit_map()
     out["qubit_map_loaded"] = bool(qmap)
 
@@ -111,29 +263,29 @@ def analyze(frozen):
     for kind in ("t1", "t2"):
         rows = []
         for path in sorted(glob.glob(os.path.join(REPO, f"fetch_*_{kind}.csv"))):
-            t, y = load_csv(path)
-            (A, T, B), (sA, sT, sB), chi2r, _ = wfit(
-                expdec, t, y, [y[0] - y[-1], 100e-6, y[-1]])
+            t, y = load_csv(path, n_pts.get(kind))
             jid = job_id(path)
-            rows.append({
-                "job": jid,
-                "qubit": qubit_of(qmap, jid),
-                "frozen_fit_us": frozen.fit_exponential(t, y) * 1e6 if frozen else None,
-                "nlls_us": T * 1e6, "nlls_err_us": sT * 1e6,
-                "floor_B": B, "red_chi2": chi2r,
-                "single_exp_adequate": chi2r <= CHI2_FLAG,
-            })
+            row = {"job": jid, "qubit": qubit_of(qmap, jid),
+                   "frozen_fit_us": frozen.fit_exponential(t, y) * 1e6 if frozen else None}
+            try:
+                row.update(fit_decay(t, y))
+            except FitError as exc:
+                row["fit_failed"] = str(exc)
+            rows.append(row)
+        ok = [r for r in rows if "fit_failed" not in r]
         out[kind] = {"runs": rows,
-                     "nlls_group_us": group([r["nlls_us"] for r in rows]),
-                     "frozen_group_us": group([r["frozen_fit_us"] for r in rows])
-                     if frozen else None}
-        # Pooling across physical qubits mixes devices: group per qubit when known.
+                     "pooled_all_qubits": {
+                         "weighted_us": group([r["T_us"] for r in ok]),
+                         "frozen_us": group([r["frozen_fit_us"] for r in rows]) if frozen else None,
+                         "warning": "pools different physical qubits; not a physical quantity"
+                                    if qmap else "qubit map not loaded"}}
         if qmap:
             per_q = {}
-            for r in rows:
+            for r in ok:
                 per_q.setdefault(r["qubit"], []).append(r)
             out[kind]["per_qubit"] = {
-                q: {"nlls_us": group([r["nlls_us"] for r in rs]),
+                q: {"weighted_us": group([r["T_us"] for r in rs]),
+                    "fit_sigma_us_per_run": [r["fit_sigma_us"] for r in rs],
                     "frozen_us": group([r["frozen_fit_us"] for r in rs]) if frozen else None,
                     "ibm_reported_us": float(qmap[rs[0]["job"]][
                         "ibm_T1_us" if kind == "t1" else "ibm_T2_us"]),
@@ -142,17 +294,14 @@ def analyze(frozen):
 
     # ---- Ramsey -----------------------------------------------------------
     path = glob.glob(os.path.join(REPO, "fetch_*_ramsey.csv"))[0]
-    d, y = load_csv(path)
+    d, y = load_csv(path, n_pts.get("ramsey"))
     step = d[1] - d[0]
     nyq = 1 / (2 * step)
-    prog = frozen.DETUNING_SIM if frozen else 250e3
-    branches = []
-    for f0 in (prog - 25e3, prog + 25e3):   # one start on each side of Nyquist
-        p, e, chi2r, rss = wfit(ramsey_model, d, y, [-0.45, f0, 0.0, 40e-6, 0.5])
-        branches.append({"f_khz": p[1] / 1e3, "f_err_khz": e[1] / 1e3,
-                         "T2star_us": p[3] * 1e6, "T2star_err_us": e[3] * 1e6,
-                         "red_chi2": chi2r, "rss": rss})
-    offs = [abs(b["f_khz"] - prog / 1e3) for b in branches]
+    prog = PROGRAMMED_DETUNING
+    branches = fit_ramsey_branches(d, y, prog)
+    scan = ramsey_model_scan(d, y, branches[0]["f_khz"] * 1e3)
+    offs = [abs(s["f_khz"] - prog / 1e3) for s in scan if "f_khz" in s]
+    best = branches[0]
     out["ramsey"] = {
         "job": job_id(path), "qubit": qubit_of(qmap, job_id(path)),
         "programmed_khz": prog / 1e3,
@@ -162,32 +311,32 @@ def analyze(frozen):
         "alias_branches": branches,
         "aliases_indistinguishable": bool(np.isclose(branches[0]["rss"],
                                                      branches[1]["rss"], rtol=1e-6)),
-        "frame_offset_abs_khz": float(np.mean(offs)),
-        "frame_offset_err_khz": branches[0]["f_err_khz"],
+        "offset_abs_khz_best_fit": abs(best["f_khz"] - prog / 1e3),
+        "offset_fit_sigma_khz": best["fit_sigma_khz"],
+        "single_tone_adequate": best["red_chi2"] <= CHI2_FLAG,
+        "model_scan": scan,
+        "offset_model_range_khz": [min(offs), max(offs)] if offs else None,
     }
 
     # ---- Rabi ---------------------------------------------------------------
     path = glob.glob(os.path.join(REPO, "fetch_*_rabi.csv"))[0]
-    x, y = load_csv(path)
-    p, e, chi2r, _ = wfit(rabi_model, x, y, [-0.5, 2 * np.pi, 0.0, 0.5])
+    x, y = load_csv(path, n_pts.get("rabi"))
     out["rabi"] = {"job": job_id(path),
                    "frozen_fft_rad": 1 / frozen.fit_cos_frequency(x, y) if frozen else None,
-                   "nlls_period_rad": p[1], "nlls_err_rad": e[1],
-                   "ideal_rad": 2 * np.pi, "red_chi2": chi2r,
+                   **fit_rabi(x, y), "ideal_rad": 2 * np.pi,
                    "note": "Rx(theta) compiles to virtual-Z around fixed sqrt(X) "
                            "pulses: a gate-phase sweep, not a drive-amplitude Rabi."}
 
     # ---- Coherent-ops budget (transmon side only) -------------------------
     if qmap and "per_qubit" in out["t2"]:
-        # Measured sx duration per qubit from IBM calibration, per-qubit T2 echo.
         out["ops_budget"] = {}
         for q, g in out["t2"]["per_qubit"].items():
             sx = float(qmap[g["jobs"][0]]["sx_ns"]) * 1e-9
-            t2q = g["nlls_us"]["mean"] * 1e-6
-            out["ops_budget"][q] = {"T2_echo_us": t2q * 1e6, "sx_ns_MEASURED": sx * 1e9,
+            t2q = g["weighted_us"]["mean"] * 1e-6
+            out["ops_budget"][q] = {"T2_echo_us": t2q * 1e6, "sx_ns_ibm_reported": sx * 1e9,
                                     "ratio": t2q / sx}
     else:
-        t2 = out["t2"]["nlls_group_us"]["mean"] * 1e-6
+        t2 = out["t2"]["pooled_all_qubits"]["weighted_us"]["mean"] * 1e-6
         out["ops_budget"] = {"pooled": {"T2_echo_us": t2 * 1e6,
                                         "gate_time_ns_ASSUMED": GATE_TIME_ASSUMED * 1e9,
                                         "ratio": t2 / GATE_TIME_ASSUMED}}
@@ -218,43 +367,86 @@ def estimator_checks(frozen):
     return chk
 
 
+# --------------------------------------------------------------------------
+# Report
+# --------------------------------------------------------------------------
+def _num(v, n=1):
+    return "—" if v is None else f"{v:.{n}f}"
+
+
+def _grp(g, unit="us"):
+    """'mean ± SD (sample SD, n=k)', or 'value (n=1)'. None-safe."""
+    if g is None:
+        return "—"
+    if g["sample_sd"] is None:
+        return f"{g['mean']:.1f} {unit} (n=1)"
+    return f"{g['mean']:.1f} ± {g['sample_sd']:.1f} {unit} (sample SD, n={g['n']})"
+
+
 def report(res, chk):
-    f = lambda v, n=1: "—" if v is None else f"{v:.{n}f}"
-    print("POST-HOC REANALYSIS (deviation; frozen script untouched)\n")
+    print("POST-HOC REANALYSIS (deviation; frozen script untouched)")
+    if not res["frozen_estimators_available"]:
+        print("[frozen estimators unavailable (qiskit not installed): frozen columns show —]")
+    print("± conventions: fit σ = statistical, from the fit; sample SD = across runs;"
+          " model range = across fit models\n")
     for kind, label in (("t1", "T1"), ("t2", "T2 echo")):
-        print(f"{label}: job | qubit | frozen fit | weighted NLLS ±1σ | floor B | red.χ²")
+        print(f"{label}: job | qubit | frozen fit | weighted fit ± fit σ | floor B | red.χ²")
         for r in res[kind]["runs"]:
-            flag = "" if r["single_exp_adequate"] else "  <- single exponential inadequate"
-            print(f"  {r['job']} | q{r['qubit'] or '?'} | {f(r['frozen_fit_us'])} us | "
-                  f"{r['nlls_us']:.1f} ± {r['nlls_err_us']:.1f} us | "
+            if "fit_failed" in r:
+                print(f"  {r['job']} | q{r['qubit'] or '?'} | FIT FAILED: {r['fit_failed']}")
+                continue
+            flags = []
+            if not r["single_exp_adequate"]:
+                flags.append("single exponential inadequate")
+            if r["params_at_bound"]:
+                flags.append(f"params {r['params_at_bound']} at bound")
+            flag = f"  <- {'; '.join(flags)}" if flags else ""
+            print(f"  {r['job']} | q{r['qubit'] or '?'} | {_num(r['frozen_fit_us'])} us | "
+                  f"{r['T_us']:.1f} ± {r['fit_sigma_us']:.1f} us | "
                   f"{r['floor_B']:.3f} | {r['red_chi2']:.2f}{flag}")
-        g, fg = res[kind]["nlls_group_us"], res[kind]["frozen_group_us"]
-        print(f"  NLLS   mean {g['mean']:.1f} ± {g['sd']:.1f} us (sample SD, n={g['n']})")
-        if fg:
-            print(f"  frozen mean {fg['mean']:.1f} ± {fg['sd']:.1f} us (as published)")
+        pooled = res[kind]["pooled_all_qubits"]
+        print(f"  pooled, weighted: {_grp(pooled['weighted_us'])}  [{pooled['warning']}]")
+        if pooled["frozen_us"]:
+            print(f"  pooled, frozen (as published): {_grp(pooled['frozen_us'])}")
         if "per_qubit" in res[kind]:
-            print("  pooled means above MIX QUBITS; per qubit:")
+            print("  per qubit:")
             for q, g in res[kind]["per_qubit"].items():
-                sd = lambda d: "" if d["sd"] is None else f" ± {d['sd']:.1f}"
-                print(f"    q{q} (n={g['nlls_us']['n']}): NLLS {g['nlls_us']['mean']:.1f}"
-                      f"{sd(g['nlls_us'])} us | frozen {g['frozen_us']['mean']:.1f}"
-                      f"{sd(g['frozen_us'])} us | IBM-reported {g['ibm_reported_us']:.1f} us")
+                sig = ", ".join(f"{s:.1f}" for s in g["fit_sigma_us_per_run"])
+                print(f"    q{q}: weighted {_grp(g['weighted_us'])}; fit σ per run [{sig}] us | "
+                      f"frozen {_grp(g['frozen_us'])} | IBM-reported {g['ibm_reported_us']:.1f} us")
         print()
+
     r = res["ramsey"]
-    print(f"Ramsey: step {r['sample_step_us']:.1f} us -> Nyquist {r['nyquist_khz']:.1f} kHz "
-          f"(programmed {r['programmed_khz']:.0f} kHz; at Nyquist: {r['at_nyquist']})")
+    print(f"Ramsey (q{r['qubit'] or '?'}): step {r['sample_step_us']:.1f} us -> Nyquist "
+          f"{r['nyquist_khz']:.1f} kHz (programmed {r['programmed_khz']:.0f} kHz; "
+          f"at Nyquist: {r['at_nyquist']})")
     for b in r["alias_branches"]:
-        print(f"  branch f = {b['f_khz']:.2f} ± {b['f_err_khz']:.2f} kHz, "
-              f"T2* = {b['T2star_us']:.1f} ± {b['T2star_err_us']:.1f} us, RSS {b['rss']:.6f}")
+        print(f"  branch f = {b['f_khz']:.2f} ± {b['fit_sigma_khz']:.2f} kHz (fit σ), "
+              f"T2* = {b['T2star_us']:.1f} ± {b['T2star_fit_sigma_us']:.1f} us, "
+              f"red.χ² {b['red_chi2']:.1f}, RSS {b['rss']:.6f}")
     print(f"  aliases indistinguishable: {r['aliases_indistinguishable']}")
-    print(f"  -> frame offset |δ| = {r['frame_offset_abs_khz']:.1f} ± "
-          f"{r['frame_offset_err_khz']:.1f} kHz, sign undetermined "
-          f"(frozen FFT read {f(r['frozen_fft_khz'], 2)} kHz)\n")
+    print("  model scan (systematic):")
+    for s in r["model_scan"]:
+        if "fit_failed" in s:
+            print(f"    {s['model']:38s} FIT FAILED: {s['fit_failed']}")
+        else:
+            print(f"    {s['model']:38s} |δ| = {abs(s['f_khz'] - r['programmed_khz']):5.2f} kHz"
+                  f"  red.χ² {s['red_chi2']:6.1f}")
+    lo, hi = r["offset_model_range_khz"]
+    adequacy = "" if r["single_tone_adequate"] else \
+        f" Single-tone model fits poorly (red.χ² {r['alias_branches'][0]['red_chi2']:.0f})."
+    print(f"  -> apparent frame offset |δ| ≈ {r['offset_abs_khz_best_fit']:.1f} kHz "
+          f"(fit σ ±{r['offset_fit_sigma_khz']:.1f}; model range {lo:.1f}–{hi:.1f} kHz); "
+          f"sign undetermined.{adequacy}")
+    print(f"     frozen FFT read {_num(r['frozen_fft_khz'], 2)} kHz\n")
+
     r = res["rabi"]
-    print(f"Rabi: NLLS period {r['nlls_period_rad']:.3f} ± {r['nlls_err_rad']:.3f} rad "
-          f"(ideal {r['ideal_rad']:.3f}; frozen FFT {f(r['frozen_fft_rad'], 3)})\n")
+    print(f"Rabi: period {r['period_rad']:.3f} ± {r['fit_sigma_rad']:.3f} rad (fit σ), "
+          f"red.χ² {r['red_chi2']:.1f} (ideal {r['ideal_rad']:.3f}; "
+          f"frozen FFT {_num(r['frozen_fft_rad'], 3)})\n")
+
     for q, o in res["ops_budget"].items():
-        gate = (f"{o['sx_ns_MEASURED']:.0f} ns (IBM-reported sx)" if "sx_ns_MEASURED" in o
+        gate = (f"{o['sx_ns_ibm_reported']:.0f} ns (IBM-reported sx)" if "sx_ns_ibm_reported" in o
                 else f"{o['gate_time_ns_ASSUMED']:.0f} ns (ASSUMED)")
         print(f"Ops budget [{'q' + q if q != 'pooled' else q}]: T2 echo "
               f"{o['T2_echo_us']:.1f} us / {gate} = {o['ratio']:.2e}")
@@ -266,21 +458,32 @@ def report(res, chk):
                                           f"{kk} -> {vv:.3f}" for kk, vv in v.items()))
 
 
+def _jsonable(o):
+    if isinstance(o, dict):
+        return {k: _jsonable(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_jsonable(v) for v in o]
+    if isinstance(o, (np.floating, np.integer)):
+        return o.item()
+    if isinstance(o, np.bool_):
+        return bool(o)
+    return o
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", help="write full results to this JSON path")
     args = ap.parse_args()
     try:
         frozen = load_frozen()
-    except ImportError as exc:   # qiskit missing: NLLS still runs
-        print(f"[frozen script not importable ({exc}); frozen columns skipped]\n")
+    except ImportError:          # qiskit missing: weighted fits still run
         frozen = None
     res = analyze(frozen)
     chk = estimator_checks(frozen) if frozen else None
     report(res, chk)
     if args.json:
         with open(args.json, "w") as fh:
-            json.dump({"results": res, "estimator_checks": chk}, fh, indent=2)
+            json.dump(_jsonable({"results": res, "estimator_checks": chk}), fh, indent=2)
         print(f"\nJSON -> {args.json}")
 
 

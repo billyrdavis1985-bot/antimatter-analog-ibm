@@ -2,6 +2,12 @@
   "results": {
     "deviation": "post-hoc reanalysis, not preregistered",
     "shots": 4000,
+    "frozen_estimators_available": true,
+    "uncertainty_conventions": {
+      "fit_sigma": "1-sigma from fit covariance, inflated by sqrt(red. chi2) if >1",
+      "sample_sd": "standard deviation across repeated runs",
+      "model_range": "spread across reasonable fit models (systematic)"
+    },
     "qubit_map_loaded": true,
     "t1": {
       "runs": [
@@ -9,63 +15,73 @@
           "job": "db5nptsvf2bc73d06960",
           "qubit": "70",
           "frozen_fit_us": 78.71533599383771,
-          "nlls_us": 74.29731452164009,
-          "nlls_err_us": 1.320797918431925,
-          "floor_B": 0.016538445672335377,
-          "red_chi2": 4.337982732872122,
-          "single_exp_adequate": false
+          "T_us": 74.29776426136907,
+          "fit_sigma_us": 1.320911849840604,
+          "floor_B": 0.016537944608017018,
+          "red_chi2": 4.337982756727744,
+          "single_exp_adequate": false,
+          "params_at_bound": []
         },
         {
           "job": "db5she84qg6s73c3u47g",
           "qubit": "6",
           "frozen_fit_us": 123.6660367845311,
-          "nlls_us": 107.19995454543238,
-          "nlls_err_us": 4.333325735220501,
-          "floor_B": 0.0913545731173987,
-          "red_chi2": 10.29171086325072,
-          "single_exp_adequate": false
+          "T_us": 107.20007754720953,
+          "fit_sigma_us": 4.3338279552202605,
+          "floor_B": 0.09135434742356657,
+          "red_chi2": 10.291710863331147,
+          "single_exp_adequate": false,
+          "params_at_bound": []
         },
         {
           "job": "db5sjhimb58s738ausig",
           "qubit": "6",
           "frozen_fit_us": 124.50197908662639,
-          "nlls_us": 106.65191092786117,
-          "nlls_err_us": 5.024298616365595,
-          "floor_B": 0.09822219762306164,
-          "red_chi2": 12.446790701755651,
-          "single_exp_adequate": false
+          "T_us": 106.65176946271366,
+          "fit_sigma_us": 5.024889014867162,
+          "floor_B": 0.09822244679966825,
+          "red_chi2": 12.446790703051978,
+          "single_exp_adequate": false,
+          "params_at_bound": []
         },
         {
           "job": "db5sjoamb58s738ausq0",
           "qubit": "6",
           "frozen_fit_us": 125.88280952596811,
-          "nlls_us": 111.79524191451075,
-          "nlls_err_us": 4.450655998002684,
-          "floor_B": 0.09258708704104968,
-          "red_chi2": 9.348906527211744,
-          "single_exp_adequate": false
+          "T_us": 111.79538385153161,
+          "fit_sigma_us": 4.451187304716384,
+          "floor_B": 0.09258717906500023,
+          "red_chi2": 9.348906529665152,
+          "single_exp_adequate": false,
+          "params_at_bound": []
         }
       ],
-      "nlls_group_us": {
-        "mean": 99.98610547736111,
-        "sd": 17.280453937312895,
-        "n": 4
-      },
-      "frozen_group_us": {
-        "mean": 113.19154034774084,
-        "sd": 23.002304812610447,
-        "n": 4
+      "pooled_all_qubits": {
+        "weighted_us": {
+          "mean": 99.98624878070596,
+          "sample_sd": 17.28026233843999,
+          "n": 4
+        },
+        "frozen_us": {
+          "mean": 113.19154034774084,
+          "sample_sd": 23.002304812610447,
+          "n": 4
+        },
+        "warning": "pools different physical qubits; not a physical quantity"
       },
       "per_qubit": {
         "70": {
-          "nlls_us": {
-            "mean": 74.29731452164009,
-            "sd": null,
+          "weighted_us": {
+            "mean": 74.29776426136907,
+            "sample_sd": null,
             "n": 1
           },
+          "fit_sigma_us_per_run": [
+            1.320911849840604
+          ],
           "frozen_us": {
             "mean": 78.71533599383771,
-            "sd": null,
+            "sample_sd": null,
             "n": 1
           },
           "ibm_reported_us": 95.6,
@@ -74,14 +90,19 @@
           ]
         },
         "6": {
-          "nlls_us": {
-            "mean": 108.54903579593476,
-            "sd": 2.824620076204988,
+          "weighted_us": {
+            "mean": 108.54907695381826,
+            "sample_sd": 2.824719772736193,
             "n": 3
           },
+          "fit_sigma_us_per_run": [
+            4.3338279552202605,
+            5.024889014867162,
+            4.451187304716384
+          ],
           "frozen_us": {
             "mean": 124.68360846570853,
-            "sd": 1.1194919697362127,
+            "sample_sd": 1.1194919697362127,
             "n": 3
           },
           "ibm_reported_us": 133.9,
@@ -99,53 +120,62 @@
           "job": "db5sjvslf4us73c4ga90",
           "qubit": "6",
           "frozen_fit_us": 111.11059872515925,
-          "nlls_us": 94.39883149228287,
-          "nlls_err_us": 2.715368536173983,
-          "floor_B": 0.5142813931560924,
-          "red_chi2": 1.2734224703126158,
-          "single_exp_adequate": true
+          "T_us": 94.39920815693013,
+          "fit_sigma_us": 2.715709411706084,
+          "floor_B": 0.5142809484190893,
+          "red_chi2": 1.2734224717386862,
+          "single_exp_adequate": true,
+          "params_at_bound": []
         },
         {
           "job": "db5t26imb58s738averg",
           "qubit": "70",
           "frozen_fit_us": 119.98928756538287,
-          "nlls_us": 88.08066011506814,
-          "nlls_err_us": 3.4289396459433776,
-          "floor_B": 0.5160876892971273,
-          "red_chi2": 2.616558514462974,
-          "single_exp_adequate": true
+          "T_us": 88.08092810952817,
+          "fit_sigma_us": 3.429435185872847,
+          "floor_B": 0.5160873642412591,
+          "red_chi2": 2.6165585151402104,
+          "single_exp_adequate": true,
+          "params_at_bound": []
         },
         {
           "job": "db5t2hg4qg6s73c3up80",
           "qubit": "70",
           "frozen_fit_us": 96.58324621465273,
-          "nlls_us": 83.80922826140964,
-          "nlls_err_us": 2.484205537575716,
-          "floor_B": 0.5137153270252036,
-          "red_chi2": 1.5736692279660391,
-          "single_exp_adequate": true
+          "T_us": 83.80942062643322,
+          "fit_sigma_us": 2.4845391704678894,
+          "floor_B": 0.5137150930731647,
+          "red_chi2": 1.5736692284679787,
+          "single_exp_adequate": true,
+          "params_at_bound": []
         }
       ],
-      "nlls_group_us": {
-        "mean": 88.76290662292023,
-        "sd": 5.327665470911008,
-        "n": 3
-      },
-      "frozen_group_us": {
-        "mean": 109.22771083506495,
-        "sd": 11.816075618961655,
-        "n": 3
+      "pooled_all_qubits": {
+        "weighted_us": {
+          "mean": 88.76318563096385,
+          "sample_sd": 5.32775811007159,
+          "n": 3
+        },
+        "frozen_us": {
+          "mean": 109.22771083506495,
+          "sample_sd": 11.816075618961655,
+          "n": 3
+        },
+        "warning": "pools different physical qubits; not a physical quantity"
       },
       "per_qubit": {
         "6": {
-          "nlls_us": {
-            "mean": 94.39883149228287,
-            "sd": null,
+          "weighted_us": {
+            "mean": 94.39920815693013,
+            "sample_sd": null,
             "n": 1
           },
+          "fit_sigma_us_per_run": [
+            2.715709411706084
+          ],
           "frozen_us": {
             "mean": 111.11059872515925,
-            "sd": null,
+            "sample_sd": null,
             "n": 1
           },
           "ibm_reported_us": 121.1,
@@ -154,14 +184,18 @@
           ]
         },
         "70": {
-          "nlls_us": {
-            "mean": 85.94494418823889,
-            "sd": 3.020358429098149,
+          "weighted_us": {
+            "mean": 85.9451743679807,
+            "sample_sd": 3.0204119071855215,
             "n": 2
           },
+          "fit_sigma_us_per_run": [
+            3.429435185872847,
+            2.4845391704678894
+          ],
           "frozen_us": {
             "mean": 108.2862668900178,
-            "sd": 16.550570559834018,
+            "sample_sd": 16.550570559834018,
             "n": 2
           },
           "ibm_reported_us": 84.4,
@@ -182,45 +216,91 @@
       "frozen_fft_khz": 225.5859375,
       "alias_branches": [
         {
-          "f_khz": 227.4791009458874,
-          "f_err_khz": 0.36000417034843973,
-          "T2star_us": 39.05905308778114,
-          "T2star_err_us": 2.3706467058390386,
-          "red_chi2": 19.040716515914756,
-          "rss": 0.023355530835458195
+          "f_khz": 227.47908411762555,
+          "fit_sigma_khz": 0.3599975508003386,
+          "T2star_us": 39.05967019678344,
+          "T2star_fit_sigma_us": 2.371193228101752,
+          "red_chi2": 19.040716562172324,
+          "rss": 0.023355352899805167,
+          "params_at_bound": []
         },
         {
-          "f_khz": 272.52089898105646,
-          "f_err_khz": 0.36000372990475155,
-          "T2star_us": 39.059053441613926,
-          "T2star_err_us": 2.3706470802171244,
-          "red_chi2": 19.040716515928878,
-          "rss": 0.02335553034686924
+          "f_khz": 272.520915816872,
+          "fit_sigma_khz": 0.35999757704386404,
+          "T2star_us": 39.059669078131456,
+          "T2star_fit_sigma_us": 2.3711936564795764,
+          "red_chi2": 19.040716562012577,
+          "rss": 0.023355353291016723,
+          "params_at_bound": []
         }
       ],
       "aliases_indistinguishable": true,
-      "frame_offset_abs_khz": 22.520899017584526,
-      "frame_offset_err_khz": 0.36000417034843973
+      "offset_abs_khz_best_fit": 22.520915882374453,
+      "offset_fit_sigma_khz": 0.3599975508003386,
+      "single_tone_adequate": false,
+      "model_scan": [
+        {
+          "model": "exponential envelope, weighted",
+          "f_khz": 227.479058742687,
+          "fit_sigma_khz": 0.35999789727892967,
+          "red_chi2": 19.04071656189917
+        },
+        {
+          "model": "exponential envelope, unweighted",
+          "f_khz": 227.20036570582653,
+          "fit_sigma_khz": 0.22119759191815125,
+          "red_chi2": 187.59803350763553
+        },
+        {
+          "model": "Gaussian envelope",
+          "f_khz": 227.32180473473588,
+          "fit_sigma_khz": 0.8344187711634857,
+          "red_chi2": 75.94874485745916
+        },
+        {
+          "model": "exponential + linear baseline drift",
+          "f_khz": 227.3955422762717,
+          "fit_sigma_khz": 0.2810044374146801,
+          "red_chi2": 11.827324170963186
+        },
+        {
+          "model": "first half of sweep only",
+          "f_khz": 229.31197487887357,
+          "fit_sigma_khz": 0.9869973688835392,
+          "red_chi2": 16.68472335517008
+        },
+        {
+          "model": "second half of sweep only",
+          "f_khz": 226.8799759619753,
+          "fit_sigma_khz": 0.22763429929587217,
+          "red_chi2": 0.9906476695849092
+        }
+      ],
+      "offset_model_range_khz": [
+        20.68802512112643,
+        23.120024038024695
+      ]
     },
     "rabi": {
       "job": "db5fs24lf4us73c3vv3g",
       "frozen_fft_rad": 6.1865209178383616,
-      "nlls_period_rad": 6.284454807292239,
-      "nlls_err_rad": 0.007147274473070094,
+      "period_rad": 6.284454967266648,
+      "fit_sigma_rad": 0.007147523011082952,
+      "red_chi2": 0.8146092892229485,
+      "params_at_bound": [],
       "ideal_rad": 6.283185307179586,
-      "red_chi2": 0.8146092892634595,
       "note": "Rx(theta) compiles to virtual-Z around fixed sqrt(X) pulses: a gate-phase sweep, not a drive-amplitude Rabi."
     },
     "ops_budget": {
       "6": {
-        "T2_echo_us": 94.39883149228287,
-        "sx_ns_MEASURED": 24.000000000000004,
-        "ratio": 3933.2846455117856
+        "T2_echo_us": 94.39920815693013,
+        "sx_ns_ibm_reported": 24.000000000000004,
+        "ratio": 3933.3003398720884
       },
       "70": {
-        "T2_echo_us": 85.94494418823889,
-        "sx_ns_MEASURED": 24.000000000000004,
-        "ratio": 3581.03934117662
+        "T2_echo_us": 85.9451743679807,
+        "sx_ns_ibm_reported": 24.000000000000004,
+        "ratio": 3581.0489319991952
       }
     }
   },
