@@ -32,6 +32,52 @@ All four pass (fits recover the programmed noise-model values).
 and a backend name from your account. `"all"` submits the frozen set
 (rabi+ramsey+t1); `t2` is opt-in (added in amend B).
 
+## Install (fresh clone)
+
+```bash
+python -m venv .venv
+./.venv/bin/pip install "qiskit==2.5.2" "qiskit-aer==0.17.2" \
+    "qiskit-ibm-runtime==0.50.0" "numpy==2.5.3" "scipy==1.18.1"
+```
+
+Then save your IBM Quantum credentials (once — the token lives in
+`~/.qiskit/`, never in this repo):
+
+```bash
+./.venv/bin/python -c "from qiskit_ibm_runtime import QiskitRuntimeService; \
+    QiskitRuntimeService.save_account(channel='ibm_quantum_platform', token='YOUR_TOKEN')"
+```
+
+Get the token from your IBM Quantum Platform account settings. Verify with
+`./.venv/bin/python antimatter_analog_ibm.py sim` — expect `SELFTEST PASS`.
+
+## Repo structure
+
+```
+antimatter-analog-ibm/
+├── antimatter_analog_ibm.py      # the suite: sim, hardware submit, fetch+fit (single file by design —
+│                                 # one SHA256 covers the entire frozen protocol)
+├── README.md                     # this file
+├── LICENSE                       # MIT
+├── RESULTS-2026-10-11.md         # run summary: job IDs, numbers, analysis
+├── FROZEN-MANIFEST.txt            # SHA256 of the frozen script (amend B current)
+├── FROZEN-MANIFEST-SUPERSEDED-2026-10-11-amendA.txt   # amend A manifest (fit fixes)
+├── FROZEN-MANIFEST-SUPERSEDED-2026-10-09.txt          # original manifest
+├── OPERATIONS-PLAN.md            # experiment plan and run order
+├── RUN-NIGHT-PREFLIGHT.md        # pre-run checklist
+├── REASONING-LOG.md              # decisions, alternatives, what went wrong
+├── VERIFICATION-fitbias-independent-2026-10-09.md     # independent fit-bias audit
+├── selftest-transcript-2026-10-09.txt                 # sim selftest output
+├── PUSH-PLAN.md                  # repo push mechanics
+├── .gitignore                    # venv, caches, credentials — never committed
+└── fetch_<job_id>_<exp>.csv      # raw measurement counts, one file per IBM job,
+                                  # committed before analysis
+```
+
+Design note: the single-file script and hardcoded sweep constants are
+deliberate — the frozen SHA256 anchors code *and* experimental parameters
+together. Splitting either would split the provenance.
+
 ## Results (ibm_fez, Heron r2 — 2026-10-10/11)
 
 | Experiment | Result | Note |
@@ -39,9 +85,9 @@ and a backend name from your account. `"all"` submits the frozen set
 | Rabi | period 6.187 rad (ideal 2π) | −1.53%, matches predicted estimator quantization (−1.54%) to the digit |
 | Ramsey | detuning 225.59 kHz (programmed 250 kHz) | −9.8%; consistency check, logged as real deviation (dephasing on a below-average qubit) |
 | T1 (n=4) | 113.2 ± 23.0 µs | three reps cluster 124.7 ± 1.1 µs; first (78.7) an outlier — transpiler qubit-pick variation, logged |
-| T2 echo | 111.1 µs | T2/T1 ≈ 0.89, healthy dephasing regime |
+| T2 echo (n=3) | 109.2 ± 11.8 µs | T2/T1 ≈ 0.88, healthy dephasing regime |
 
-**Coherent-ops budget (measured T2):** 111.1 µs / 60 ns ≈ **1.9×10³** gate
+**Coherent-ops budget (measured T2):** 109.2 µs / 60 ns ≈ **1.8×10³** gate
 operations per coherence time, vs BASE's antiproton ≈ 5×10⁴. Same qualitative
 regime — many coherent ops per coherence time — at a smaller budget. The
 ratio, not the raw seconds, is the analogy's payload.
@@ -58,12 +104,3 @@ chain: original → amend A → amend B, all preserved).
 - Sim selftest passes identically on two machines (Aer).
 - Repeats sample the transpiler's best-available qubit per submission —
 typical hardware variation, not one qubit's drift.
-
-## Files
-
-- `antimatter_analog_ibm.py` — the suite (numpy + qiskit + qiskit-aer only)
-- `fetch_*.csv` — raw measurement counts, one file per job
-- `RESULTS-2026-10-11.md` — run summary with job IDs and analysis
-- `FROZEN-MANIFEST*.txt` — hash-frozen code manifests and amend chain
-- `OPERATIONS-PLAN.md`, `RUN-NIGHT-PREFLIGHT.md`, `REASONING-LOG.md`,
-`VERIFICATION-fitbias-independent-2026-10-09.md` — planning and review docs
