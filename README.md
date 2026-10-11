@@ -40,6 +40,9 @@ and a backend name from your account. `"all"` submits the frozen set
 
 ## Install (fresh clone)
 
+**Requires Python 3.12 or newer.** The numpy pin (2.5.3) does not install on
+3.11 or older.
+
 ```bash
 python -m venv .venv
 ./.venv/bin/pip install "qiskit==2.5.2" "qiskit-aer==0.17.2" \
@@ -56,6 +59,12 @@ Then save your IBM Quantum credentials (once — the token lives in
 
 Get the token from your IBM Quantum Platform account settings. Verify with
 `./.venv/bin/python antimatter_analog_ibm.py sim` — expect `SELFTEST PASS`.
+
+**Windows (PowerShell):** the commands are the same with Windows paths. Use
+`py -3.12 -m venv .venv` to create the venv, then `.venv\Scripts\pip.exe` in place
+of `./.venv/bin/pip` and `.venv\Scripts\python.exe` in place of `./.venv/bin/python`.
+Put the `pip install` arguments on one line, since `\` does not continue lines in
+PowerShell.
 
 ## Repo structure
 
@@ -100,7 +109,7 @@ are kept for the record. Why each one changed: `ERRATA-2026-10-11.md`.
 | Experiment | Corrected | As first published | Note |
 |---|---|---|---|
 | Rabi | 6.284 ± 0.007 rad | 6.187 rad | Recovers 2π. The earlier −1.53% was an estimator artifact. End-to-end plumbing test, not an amplitude Rabi. |
-| Ramsey | qubit frame offset \|δ\| = 22.5 ± 0.4 kHz (sign undetermined); T2\* ≈ 39 µs | 225.59 kHz, "dephasing" | Sweep sampled exactly at Nyquist (250 kHz). The offset is a real physical frequency measurement. |
+| Ramsey (qubit 70) | qubit frame offset \|δ\| = 22.5 ± 0.4 kHz (sign undetermined); T2\* ≈ 39 µs | 225.59 kHz, "dephasing" | Sweep sampled exactly at Nyquist (250 kHz). The offset is a real physical frequency measurement. |
 | T1, qubit 6 (n=3) | 108–125 µs (model-dependent) | 124.7 ± 1.1 µs | IBM's calibration: 133.9 µs. Single exponential fits poorly (reduced χ² 9–12). |
 | T1, qubit 70 (n=1) | 74–79 µs | 78.7 µs, "outlier" | Different qubit confirmed from job records; not an outlier. IBM: 95.6 µs. |
 | T2 echo, qubit 70 (n=2) | 85.9 ± 3.0 µs | pooled 109.2 µs | Matches IBM's 84.4 µs; frozen estimator read high. |
