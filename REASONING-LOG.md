@@ -30,6 +30,8 @@
 - **BASE manuscript numbers (mine, caught pre-run):** I quoted ">80% spin inversions" and "16× linewidth"
   from secondary coverage. Checked against the full *Nature* text: paper says **">70%"** and
   **"more than ten times narrower"** (FWHM < 200 mHz; the 16× was my arithmetic, not their claim).
+  *[2026-10-14 correction: this was wrong. The abstract reports > 80% in time-series measurements,
+  > 70% in resonance scans, and linewidths "16 times narrower". See ERRATA §11.1.]*
   Also surfaced from the manuscript: fitted coherence 50.2 ± 4.8 s, accelerator magnetic noise
   alone knocking it to 5.6 s — environment-limited coherence, which is why BASE-STEP matters.
 - **Nemo lineage retraction cycle (earlier work):** flagged Mistral/Mistral-NeMo lineage correlation,

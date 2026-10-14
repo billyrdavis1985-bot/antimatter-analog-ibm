@@ -101,7 +101,7 @@ antimatter-analog-ibm/
 ├── PUSH-PLAN.md                  # repo push mechanics
 ├── .gitignore                    # venv, caches, credentials — never committed
 └── fetch_<job_id>_<exp>.csv      # measured P1 per sweep point (4,000 shots each),
-                                  # one file per IBM job, committed before analysis
+                                  # one file per IBM job, committed before further analysis
 ```
 
 Design note: the single-file script and hardcoded sweep constants are
@@ -139,8 +139,9 @@ paper's Rabi frequency (~50 mHz) and 16 s drive time put BASE at a few coherent
 operations per coherence time, not 5×10⁴. BASE's figure of merit is linewidth
 from long interrogation, not operation count.
 
-Per-run details as first reported: `RESULTS-2026-10-11.md`. Raw data: `fetch_*.csv`,
-committed before analysis.
+Per-run details as first reported: `RESULTS-2026-10-11.md`. Results files: `fetch_*.csv`
+(measured P1, not raw counts), each committed to git before further analysis. The frozen
+retrieval code wrote them only after its fit ran (ERRATA §11.2).
 
 ## Provenance
 
