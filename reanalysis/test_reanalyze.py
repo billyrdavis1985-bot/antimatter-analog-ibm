@@ -142,13 +142,41 @@ def test_numpy_only_path_runs_and_reports():
     assert "apparent frame offset" in out
 
 
+def assert_close(got, want, path="", rel=1e-9):
+    """Recursive comparison: exact for strings, ints, bools and structure;
+    floats to a relative tolerance. Bit-exact float equality fails across
+    machines (different CPUs and BLAS builds round the last digits differently),
+    which is not a change in the analysis."""
+    if isinstance(want, dict):
+        assert isinstance(got, dict) and set(got) == set(want), path
+        for k in want:
+            assert_close(got[k], want[k], f"{path}/{k}", rel)
+    elif isinstance(want, list):
+        assert isinstance(got, list) and len(got) == len(want), path
+        for i, (g, w) in enumerate(zip(got, want)):
+            assert_close(g, w, f"{path}[{i}]", rel)
+    elif isinstance(want, float) and not isinstance(want, bool):
+        assert isinstance(got, (int, float)), path
+        assert got == pytest.approx(want, rel=rel, abs=1e-12), f"{path}: {got} != {want}"
+    else:
+        assert got == want, f"{path}: {got!r} != {want!r}"
+
+
 def test_committed_json_reproduces():
     frozen = frozen_or_skip()
     res = rp._jsonable({"results": rp.analyze(frozen),
                         "estimator_checks": rp.estimator_checks(frozen)})
     with open(os.path.join(HERE, "reanalysis-2026-10-11.json")) as fh:
         committed = json.load(fh)
-    assert res == committed
+    assert_close(res, committed)
+
+
+def test_assert_close_catches_real_changes():
+    assert_close({"a": [1.0, "x"]}, {"a": [1.0 + 1e-14, "x"]})
+    with pytest.raises(AssertionError):
+        assert_close({"a": 1.0}, {"a": 1.001})
+    with pytest.raises(AssertionError):
+        assert_close({"a": 1.0}, {"b": 1.0})
 
 
 def test_published_headline_values():
