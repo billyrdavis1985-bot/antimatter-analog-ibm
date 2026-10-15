@@ -5,26 +5,33 @@
 Runs the BASE experiment's *protocol* — not its particle — on IBM quantum
 hardware via the cloud.
 
-> **Correction notice (2026-10-11):** a post-hoc review found analysis errors
-> that change several published numbers and withdraw the BASE ops-budget
-> comparison. The frozen script is unchanged. Corrected results are below;
+> **Correction notice (2026-10-11, updated 2026-10-15):** a post-hoc review found
+> analysis errors that change several published numbers and withdraw the BASE
+> ops-budget comparison. The frozen script is unchanged. Corrected results are below;
 > full details and reproduction are in [`ERRATA-2026-10-11.md`](ERRATA-2026-10-11.md).
+> Later corrections: BASE figures and data save order (2026-10-14, ERRATA §11);
+> analogy wording (2026-10-15, ERRATA §12).
 
-## The mapping
+## The analogy (mathematical, not physical)
 
-| BASE (CERN, antiproton) | This script (transmon) |
-|---|---|
-| Spin-1/2 two-level system | Qubit |
-| Coherent drive (phase-stable RF) | Rx(theta) gate (compiled as virtual-Z around fixed √X pulses: a phase sweep, not an amplitude sweep) |
-| 50 s spin coherence | T1 / T2-echo |
-| g-factor from precession frequency | Detuning from Ramsey fringes |
-| Linewidth -> measurement precision | Fringe fit -> frequency estimate |
+BASE and this repo share measurement *techniques*, not physics. A transmon is not a
+spin-½ particle and has no magnetic moment; its two lowest energy levels obey the same
+Bloch-sphere equations a spin does. Nothing here measures antimatter, a magnetic
+moment or a g-factor.
 
-What does NOT transfer: no antimatter on the chip; the "detuning" is a
-programmed virtual-Z phase, not a physical Larmor frequency. The hardware and
-readout chains are entirely different from BASE's. What this repo demonstrates is
-shared control and estimation principles: coherent drive, Ramsey interferometry,
-and frequency estimation from fringes.
+| Technique | BASE (antiproton in a Penning trap) | This repo (transmon on ibm_fez) | What is shared |
+|---|---|---|---|
+| Coherent drive | An RF magnetic field flips a real spin | Rx(θ) gate-angle sweep, compiled to fixed √X pulses plus software phase | The rotation equations |
+| Ramsey | Measures the spin's precession frequency, a physical property | Measures a programmed 250 kHz phase ramp, plus an apparent ~22 kHz offset of unresolved cause | Frequency estimation from fringes |
+| Coherence | Spin coherence ≈ 50 s, sensitive to magnetic-field noise | T1 and T2 echo ≈ 75–125 µs, set by dielectric loss, flux noise and quasiparticles | The exponential-decay model |
+
+The hardware, readout and noise physics are entirely different from BASE's. The earlier
+comparison of coherent-operation budgets is withdrawn (ERRATA §3). The frozen script's
+docstring describes the analogy more strongly than this table does; see ERRATA §12.
+
+The code, analysis and initial review were produced by Meta's Muse, an AI model, as a
+test of its scientific reasoning; its working logs are signed "Pip". Every circuit ran on
+IBM's ibm_fez processor (Heron r2).
 
 ## Run it
 
